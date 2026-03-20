@@ -1,10 +1,8 @@
 package main
 
 import (
-	"log"
-	"net/http"
-
 	"App_Financeiro_Back-end/internal/auth"
+	"log"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,12 +10,8 @@ import (
 func main() {
 	router := gin.Default()
 
-	api := router.Group("/api/v1")
+	api := router.Group("/api")
 	{
-		api.GET("/health", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{"status": "UP"})
-		})
-
 		auth.RegisterRoutes(api)
 	}
 
