@@ -24,6 +24,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 		{
 			protected.GET("/users", getUsers)
 			protected.PATCH("/users", updatePassword)
+			protected.DELETE("/delete", deleteAccount)
 		}
 	}
 }
@@ -141,4 +142,26 @@ func updatePassword(c *gin.Context) {
 	database.DB.Save(&user)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Senha atualizada com sucesso no banco de dados!"})
+}
+
+func deleteAccount(c *gin.Context) {
+	var req DeleteUserRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Por favor, envie o ID do usuário. Ex: {\"id\": 2}"})
+		return
+	}
+
+	var user User
+	if err := database.DB.First(&user, req.ID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado no banco de dados"})
+		return
+	}
+
+	if err := database.DB.Delete(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao tentar deletar o usuário"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Usuário deletado com sucesso pelo Admin!"})
 }
