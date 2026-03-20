@@ -1,0 +1,5 @@
+app.exe
+server.exe
+go-temp/
+.idea/
+.vscode/

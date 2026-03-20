@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"App_Financeiro_Back-end/internal/database"
 	"net/http"
 	"time"
 
@@ -34,7 +35,8 @@ func register(c *gin.Context) {
 		return
 	}
 
-	if _, exists := mockDB[req.Email]; exists {
+	var existingUser User
+	if err := database.DB.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "Este e-mail já está cadastrado"})
 		return
 	}
@@ -45,13 +47,21 @@ func register(c *gin.Context) {
 		return
 	}
 
-	mockDB[req.Email] = User{
+	newUser := User{
 		Name:     req.Name,
 		Email:    req.Email,
 		Password: string(hashedPassword),
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Usuário " + req.Name + " criado com sucesso!"})
+	if err := database.DB.Create(&newUser).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar no banco de dados"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Usuário " + req.Name + " criado com sucesso!",
+		"user_id": newUser.ID,
+	})
 }
 
 func login(c *gin.Context) {
@@ -61,8 +71,8 @@ func login(c *gin.Context) {
 		return
 	}
 
-	user, exists := mockDB[req.Email]
-	if !exists {
+	var user User
+	if err := database.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "E-mail ou senha incorretos"})
 		return
 	}
@@ -90,9 +100,7 @@ func login(c *gin.Context) {
 func getUsers(c *gin.Context) {
 	var usersList []User
 
-	for _, user := range mockDB {
-		usersList = append(usersList, user)
-	}
+	database.DB.Find(&usersList)
 
 	c.JSON(http.StatusOK, gin.H{"total": len(usersList), "users": usersList})
 }
@@ -110,9 +118,9 @@ func updatePassword(c *gin.Context) {
 		return
 	}
 
+	var user User
 	emailStr := loggedEmail.(string)
-	user, found := mockDB[emailStr]
-	if !found {
+	if err := database.DB.Where("email = ?", emailStr).First(&user).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado no sistema"})
 		return
 	}
@@ -130,7 +138,7 @@ func updatePassword(c *gin.Context) {
 	}
 
 	user.Password = string(hashedPassword)
-	mockDB[emailStr] = user
+	database.DB.Save(&user)
 
-	c.JSON(http.StatusOK, gin.H{"message": "Senha atualizada com sucesso!"})
+	c.JSON(http.StatusOK, gin.H{"message": "Senha atualizada com sucesso no banco de dados!"})
 }
