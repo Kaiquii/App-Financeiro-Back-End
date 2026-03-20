@@ -4,6 +4,7 @@ Back-end em Go para controle financeiro pessoal.
 
 ## Rotas da API
 
+# Auth
 1. /api/auth/register -> POST -> Criar nova Conta
 2. /api/auth/login -> POST -> Autenticar usuário/Login
 3. /api/auth/users -> GET -> Listar os Usuários
