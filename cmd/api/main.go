@@ -1,11 +1,9 @@
 package main
 
 import (
-	"log"
-	"os"
-
 	"App_Financeiro_Back-end/internal/auth"
 	"App_Financeiro_Back-end/internal/database"
+	"log"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,7 +14,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Erro ao rodar migrações: %v", err)
 	}
-
 	router := gin.Default()
 
 	api := router.Group("/api")
@@ -24,13 +21,8 @@ func main() {
 		auth.RegisterRoutes(api)
 	}
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	log.Printf("Servidor rodando na porta %s", port)
-	if err := router.Run(":" + port); err != nil {
+	log.Println("Servidor rodando na porta 8080...")
+	if err := router.Run(":8080"); err != nil {
 		log.Fatalf("Erro ao iniciar o servidor: %v", err)
 	}
 }
