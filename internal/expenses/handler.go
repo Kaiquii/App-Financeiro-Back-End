@@ -143,6 +143,15 @@ func updateExpense(c *gin.Context) {
 		return
 	}
 
+	updateFuture := false
+	if val, exists := updateData["update_future"]; exists {
+		if boolVal, ok := val.(bool); ok {
+			updateFuture = boolVal
+		}
+
+		delete(updateData, "update_future")
+	}
+
 	if dateStr, ok := updateData["date"].(string); ok {
 		if parsedDate, err := time.Parse(time.RFC3339, dateStr); err == nil {
 			updateData["month"] = int(parsedDate.Month())
@@ -153,6 +162,17 @@ func updateExpense(c *gin.Context) {
 	if err := database.DB.Model(&expense).Updates(updateData).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar despesa"})
 		return
+	}
+
+	if updateFuture {
+		delete(updateData, "date")
+		delete(updateData, "month")
+		delete(updateData, "year")
+
+		database.DB.Model(&Expense{}).
+			Where("user_id = ? AND description = ? AND (year > ? OR (year = ? AND month > ?))",
+				userID, expense.Description, expense.Year, expense.Year, expense.Month).
+			Updates(updateData)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Despesa atualizada com sucesso!"})
