@@ -9,16 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type CreateExpenseRequest struct {
-	Amount        float64   `json:"amount" binding:"required"`
-	Description   string    `json:"description" binding:"required"`
-	Category      string    `json:"category"`
-	PaymentSource string    `json:"payment_source"`
-	Date          time.Time `json:"date" binding:"required"`
-	Type          string    `json:"type"`
-	Installments  int       `json:"installments"`
-}
-
 func RegisterRoutes(rg *gin.RouterGroup) {
 	expensesGroup := rg.Group("/expenses")
 	{
@@ -72,7 +62,7 @@ func createExpense(c *gin.Context) {
 			UserID:         userID,
 			Amount:         amountPerInstallment,
 			Description:    req.Description,
-			Category:       req.Category,
+			CategoryID:     req.CategoryID,
 			PaymentSource:  req.PaymentSource,
 			Date:           installmentDate,
 			Month:          int(installmentDate.Month()),
