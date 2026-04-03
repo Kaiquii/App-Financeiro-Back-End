@@ -1,3 +1,9 @@
+# ARQUIVOS DE AMBIENTE E SEGURANÇA (CRÍTICO)
+.env
+.env.*
+*.pem
+*.key
+
 # BINÁRIOS GERADOS PELO GO
 /api-financeira
 *.exe
@@ -13,7 +19,7 @@
 coverage.txt
 coverage.out
 
-# PASTAS DE DEPENDÊNCIA
+# PASTAS DE DEPENDÊNCIAS
 /vendor/
 
 # ARQUIVOS DE IDE E EDITORES (VS Code, etc)
