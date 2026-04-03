@@ -3,6 +3,7 @@ package auth
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -30,7 +31,9 @@ func AuthMiddleware() gin.HandlerFunc {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("método de assinatura inesperado")
 			}
-			return jwtSecret, nil
+			secret := []byte(os.Getenv("JWT_SECRET"))
+
+			return secret, nil
 		})
 
 		if err != nil || !token.Valid {
@@ -41,7 +44,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
 			c.Set("user_email", claims["email"])
-			
+
 			if userID, ok := claims["user_id"].(float64); ok {
 				c.Set("user_id", uint(userID))
 			}

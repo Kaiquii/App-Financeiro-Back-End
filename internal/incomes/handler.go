@@ -8,14 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type CreateIncomeRequest struct {
-	Source string  `json:"source" binding:"required"`
-	Amount float64 `json:"amount" binding:"required"`
-	Month  int     `json:"month" binding:"required"`
-	Year   int     `json:"year" binding:"required"`
-	Type   string  `json:"type"`
-}
-
 func RegisterRoutes(rg *gin.RouterGroup) {
 	incomesGroup := rg.Group("/incomes")
 	{

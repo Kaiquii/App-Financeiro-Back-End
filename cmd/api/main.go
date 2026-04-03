@@ -7,12 +7,19 @@ import (
 	"App_Financeiro_Back-end/internal/expenses"
 	"App_Financeiro_Back-end/internal/incomes"
 	"App_Financeiro_Back-end/internal/reports"
+	"App_Financeiro_Back-end/internal/users"
 	"log"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Println("Aviso: Arquivo .env não encontrado. Usando variáveis do sistema.")
+	}
+
 	database.Connect()
 
 	err := database.DB.AutoMigrate(&auth.User{}, &expenses.Expense{}, &incomes.Income{}, &categories.Category{})
@@ -21,6 +28,11 @@ func main() {
 	}
 
 	router := gin.Default()
+
+	config := cors.DefaultConfig()
+	config.AllowOrigins = []string{"http://localhost:3000", "https://portfolio-kaiqui.vercel.app"} // Liberado para o localhost e para o seu futuro deploy na Vercel!
+	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
+	router.Use(cors.New(config))
 
 	api := router.Group("/api")
 	{
@@ -33,6 +45,7 @@ func main() {
 			incomes.RegisterRoutes(protected)
 			reports.RegisterRoutes(protected)
 			categories.RegisterRoutes(protected)
+			users.RegisterRoutes(protected)
 		}
 	}
 

@@ -3,6 +3,7 @@ package categories
 import (
 	"App_Financeiro_Back-end/internal/database"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -104,10 +105,20 @@ func deleteCategory(c *gin.Context) {
 	}
 
 	id := c.Param("id")
-	var cat Category
 
+	var count int64
+	database.DB.Table("expenses").Where("category_id = ? AND user_id = ?", id, userID).Count(&count)
+
+	if count > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Não é possível apagar esta categoria porque você tem " + strconv.FormatInt(count, 10) + " despesa(s) vinculada(s) a ela.",
+		})
+		return
+	}
+
+	var cat Category
 	if err := database.DB.Where("id = ? AND user_id = ?", id, userID).First(&cat).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Categoria não encontrada ou não pertence a você"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Categoria não encontrada"})
 		return
 	}
 

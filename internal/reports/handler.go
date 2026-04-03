@@ -14,6 +14,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 	reportsGroup := rg.Group("/reports")
 	{
 		reportsGroup.GET("/summary", getMonthlySummary)
+		reportsGroup.GET("/categories", getCategorySummary)
 	}
 }
 
@@ -79,4 +80,39 @@ func getMonthlySummary(c *gin.Context) {
 		"restante_adiantamento":  restanteAdiantamento,
 		"renda_extra_amt":        totalRendaExtra,
 	})
+}
+
+func getCategorySummary(c *gin.Context) {
+	userIDObj, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não identificado"})
+		return
+	}
+	userID := userIDObj.(uint)
+
+	monthStr := c.Query("month")
+	yearStr := c.Query("year")
+	if monthStr == "" || yearStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Mês e ano são obrigatórios"})
+		return
+	}
+
+	month, _ := strconv.Atoi(monthStr)
+	year, _ := strconv.Atoi(yearStr)
+
+	type Result struct {
+		CategoryID   uint    `json:"category_id"`
+		CategoryName string  `json:"category_name"`
+		TotalAmount  float64 `json:"total_amount"`
+	}
+	var results []Result
+
+	database.DB.Table("expenses").
+		Select("expenses.category_id, categories.name as category_name, sum(expenses.amount) as total_amount").
+		Joins("left join categories on categories.id = expenses.category_id").
+		Where("expenses.user_id = ? AND expenses.month = ? AND expenses.year = ?", userID, month, year).
+		Group("expenses.category_id, categories.name").
+		Scan(&results)
+
+	c.JSON(http.StatusOK, results)
 }

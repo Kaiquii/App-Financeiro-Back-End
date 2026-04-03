@@ -3,15 +3,13 @@ package auth
 import (
 	"App_Financeiro_Back-end/internal/database"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
-
-var mockDB = make(map[string]User)
-var jwtSecret = []byte("minha_chave_super_secreta_app_financeiro")
 
 func RegisterRoutes(rg *gin.RouterGroup) {
 	authGroup := rg.Group("/auth")
@@ -90,7 +88,8 @@ func login(c *gin.Context) {
 		"exp":     time.Now().Add(time.Hour * 72).Unix(),
 	})
 
-	tokenString, err := token.SignedString(jwtSecret)
+	secret := []byte(os.Getenv("JWT_SECRET"))
+	tokenString, err := token.SignedString(secret)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao gerar token"})
 		return
