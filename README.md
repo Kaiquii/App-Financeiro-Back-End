@@ -14,17 +14,28 @@ Back-end em Go para controle financeiro pessoal.
 ## Despesas
 1. /api/expenses/ -> POST -> Criar nova Despesa
 2. /api/expenses?month=03&year=2026 -> GET -> Listar Despesas
-3. /api/expenses/1 -> PATCH -> Atualizar Despesas
-4. /api/expenses/1 -> DELETE -> Deletar Despesas
+3. /api/expenses/ID -> PATCH -> Atualizar Despesas
+4. /api/expenses/ID -> DELETE -> Deletar Despesas
 
 ## Salário
 1. /api/incomes/ -> POST -> Cadastrar Salário
 2. /api/incomes/ -> GET -> Ver Salários
-3. /api/incomes/1 -> PATCH -> Atualizar Salário
-4. /api/incomes/1 -> DELETE -> Deletar Salário
+3. /api/incomes/ID -> PATCH -> Atualizar Salário
+4. /api/incomes/ID -> DELETE -> Deletar Salário
 
 ## Resumo
 1. /api/reports/summary?month=3&year=2026 -> GET -> Ver Resumo financeiro
+2. /api/reports/categories?month=3&year=2026 -> GET -> Ver Resumo de Categorias
+
+## Categorias
+1. /api/categories/ -> POST -> Criar categoria
+2. /api/categories/ -> GET -> Listar categorias
+3. /api/categories/{{Category_ID}} -> PATCH -> Atualizar categorias
+4. /api/categories/{{Category_ID}} -> DELETE -> Deletar categorias
+
+## Perfil
+1. /api/users/profile/ -> GET -> Listar perfil de Usuario
+2. /api/users/profile/ -> PATCH -> Atualizar perfil de Usuario
 
 ## Como Rodar a API
 
