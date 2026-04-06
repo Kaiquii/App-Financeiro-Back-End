@@ -30,7 +30,7 @@ func main() {
 	router := gin.Default()
 
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://localhost:3000", "https://portfolio-kaiqui.vercel.app"} // Liberado para o localhost e para o seu futuro deploy na Vercel!
+	config.AllowOrigins = []string{"http://localhost:3000", "https://deploy.dominio.app"} // Liberado para o localhost e para o futuro deploy!
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
 	router.Use(cors.New(config))
 
