@@ -4,6 +4,7 @@ import (
 	"App_Financeiro_Back-end/internal/database"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -33,6 +34,8 @@ func register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos: " + err.Error()})
 		return
 	}
+
+	req.Email = strings.ToLower(req.Email)
 
 	var existingUser User
 	if err := database.DB.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
@@ -69,6 +72,8 @@ func login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos: " + err.Error()})
 		return
 	}
+
+	req.Email = strings.ToLower(req.Email)
 
 	var user User
 	if err := database.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
@@ -113,6 +118,8 @@ func updatePassword(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos: " + err.Error()})
 		return
 	}
+
+	req.Email = strings.ToLower(req.Email)
 
 	var user User
 	if err := database.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
