@@ -16,12 +16,12 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 	{
 		authGroup.POST("/register", register)
 		authGroup.POST("/login", login)
+		authGroup.PATCH("/users", updatePassword)
 
 		protected := authGroup.Group("/")
 		protected.Use(AuthMiddleware())
 		{
 			protected.GET("/users", getUsers)
-			protected.PATCH("/users", updatePassword)
 			protected.DELETE("/delete", deleteAccount)
 		}
 	}
@@ -107,21 +107,15 @@ func getUsers(c *gin.Context) {
 }
 
 func updatePassword(c *gin.Context) {
-	loggedEmail, exists := c.Get("user_email")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Não foi possível identificar o usuário do token"})
-		return
-	}
-
 	var req UpdatePasswordRequest
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos: " + err.Error()})
 		return
 	}
 
 	var user User
-	emailStr := loggedEmail.(string)
-	if err := database.DB.Where("email = ?", emailStr).First(&user).Error; err != nil {
+	if err := database.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado no sistema"})
 		return
 	}
@@ -141,7 +135,7 @@ func updatePassword(c *gin.Context) {
 	user.Password = string(hashedPassword)
 	database.DB.Save(&user)
 
-	c.JSON(http.StatusOK, gin.H{"message": "Senha atualizada com sucesso no banco de dados!"})
+	c.JSON(http.StatusOK, gin.H{"message": "Senha atualizada com sucesso!"})
 }
 
 func deleteAccount(c *gin.Context) {
