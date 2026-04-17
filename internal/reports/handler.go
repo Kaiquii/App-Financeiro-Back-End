@@ -46,7 +46,8 @@ func getMonthlySummary(c *gin.Context) {
 
 	var totalIncome, totalExpense float64
 	var totalSalary, totalAdiantamento, totalRendaExtra float64
-	var expensesFromSalary, expensesFromAdiantamento float64
+
+	var expensesFromSalary, expensesFromAdiantamento, expensesFromRendaExtra float64
 
 	for _, income := range incomesList {
 		totalIncome += income.Amount
@@ -65,22 +66,30 @@ func getMonthlySummary(c *gin.Context) {
 			expensesFromSalary += expense.Amount
 		} else if expense.PaymentSource == "Adiantamento" {
 			expensesFromAdiantamento += expense.Amount
+		} else if expense.PaymentSource == "Renda Extra" {
+			expensesFromRendaExtra += expense.Amount
 		}
 	}
 
 	restanteSalario := totalSalary - expensesFromSalary
 	restanteAdiantamento := totalAdiantamento - expensesFromAdiantamento
+
+	restanteRendaExtra := totalRendaExtra - expensesFromRendaExtra
+
 	totalGeralDisponivel := totalIncome - totalExpense
 
 	c.JSON(http.StatusOK, gin.H{
 		"month":                  month,
 		"year":                   year,
-		"total_income":           totalIncome,
-		"total_expense":          totalExpense,
-		"total_geral_disponivel": totalGeralDisponivel,
+		"salario":                totalSalary,
+		"adiantamento":           totalAdiantamento,
+		"renda_extra_amt":        totalRendaExtra,
 		"restante_salario":       restanteSalario,
 		"restante_adiantamento":  restanteAdiantamento,
-		"renda_extra_amt":        totalRendaExtra,
+		"restante_renda_extra":   restanteRendaExtra,
+		"total_expense":          totalExpense,
+		"total_geral_disponivel": totalGeralDisponivel,
+		"total_income":           totalIncome,
 	})
 }
 
