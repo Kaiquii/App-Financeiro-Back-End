@@ -26,6 +26,8 @@ Back-end em Go para controle financeiro pessoal.
 ## Resumo
 1. /api/reports/summary?month=3&year=2026 -> GET -> Ver Resumo financeiro
 2. /api/reports/categories?month=3&year=2026 -> GET -> Ver Resumo de Categorias
+3. /api/reports/chart?year=2026 -> GET -> Ver Dados para o Gráfico de Barras
+4. /api/reports/yearly-summary?year=2026 -> GET -> Ver Média Mensal
 
 ## Categorias
 1. /api/categories/ -> POST -> Criar categoria
