@@ -16,6 +16,7 @@ type User struct {
 	Name     string `json:"name"`
 	Email    string `gorm:"uniqueIndex" json:"email"`
 	Password string `json:"-"`
+	Role     string `gorm:"type:varchar(20);default:user" json:"role"`
 }
 
 type UpdatePasswordRequest struct {

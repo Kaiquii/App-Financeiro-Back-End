@@ -23,8 +23,13 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 		protected.Use(AuthMiddleware())
 		{
 			protected.GET("/users", getUsers)
-			protected.DELETE("/delete", deleteAccount)
 		}
+	}
+
+	adminGroup := rg.Group("/admin")
+	adminGroup.Use(AuthMiddleware(), AdminMiddleware())
+	{
+		adminGroup.DELETE("/users/:id", deleteUserByAdmin)
 	}
 }
 
@@ -53,6 +58,7 @@ func register(c *gin.Context) {
 		Name:     req.Name,
 		Email:    req.Email,
 		Password: string(hashedPassword),
+		Role:     "user",
 	}
 
 	if err := database.DB.Create(&newUser).Error; err != nil {
@@ -90,6 +96,7 @@ func login(c *gin.Context) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": user.ID,
 		"email":   user.Email,
+		"role":    user.Role,
 		"exp":     time.Now().Add(time.Hour * 72).Unix(),
 	})
 
@@ -145,24 +152,24 @@ func updatePassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Senha atualizada com sucesso!"})
 }
 
-func deleteAccount(c *gin.Context) {
-	var req DeleteUserRequest
+func deleteUserByAdmin(c *gin.Context) {
+	id := c.Param("id")
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Por favor, envie o ID do usuário. Ex: {\"id\": 2}"})
+	var user User
+	if err := database.DB.First(&user, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
 		return
 	}
 
-	var user User
-	if err := database.DB.First(&user, req.ID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado no banco de dados"})
+	if user.Role == "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Não é permitido deletar outro administrador"})
 		return
 	}
 
 	if err := database.DB.Delete(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao tentar deletar o usuário"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao deletar usuário"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Usuário deletado com sucesso pelo Admin!"})
+	c.JSON(http.StatusOK, gin.H{"message": "Usuário deletado com sucesso"})
 }

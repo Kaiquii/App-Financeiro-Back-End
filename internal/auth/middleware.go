@@ -48,6 +48,30 @@ func AuthMiddleware() gin.HandlerFunc {
 			if userID, ok := claims["user_id"].(float64); ok {
 				c.Set("user_id", uint(userID))
 			}
+
+			if role, ok := claims["role"].(string); ok {
+				c.Set("user_role", role)
+			}
+		}
+
+		c.Next()
+	}
+}
+
+func AdminMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roleObj, exists := c.Get("user_role")
+		if !exists {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Acesso negado"})
+			c.Abort()
+			return
+		}
+
+		role, ok := roleObj.(string)
+		if !ok || role != "admin" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Apenas administradores podem acessar esta rota"})
+			c.Abort()
+			return
 		}
 
 		c.Next()

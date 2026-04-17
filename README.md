@@ -9,7 +9,9 @@ Back-end em Go para controle financeiro pessoal.
 2. /api/auth/login -> POST -> Autenticar usuário/Login
 3. /api/auth/users -> GET -> Listar os Usuários
 4. /api/auth/users -> PATCH -> Alterar senha
-5. /api/auth/delete -> DELETE -> Deletar Usuário
+
+## Admin
+1. /api/admin/users/ID -> Delete -> Deletar Usuário, se usuário for Admin
 
 ## Despesas
 1. /api/expenses/ -> POST -> Criar nova Despesa
