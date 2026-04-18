@@ -6,6 +6,7 @@ import (
 	"App_Financeiro_Back-end/internal/incomes"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,6 +18,19 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 		reportsGroup.GET("/categories", getCategorySummary)
 		reportsGroup.GET("/chart", getChartData)
 		reportsGroup.GET("/yearly-summary", getYearlySummary)
+	}
+}
+
+func normalizeMoneySource(source string) string {
+	switch strings.TrimSpace(strings.ToLower(source)) {
+	case "salário", "salario":
+		return "salario"
+	case "adiantamento":
+		return "adiantamento"
+	case "renda extra", "renda_extra":
+		return "renda_extra"
+	default:
+		return ""
 	}
 }
 
@@ -35,61 +49,88 @@ func getMonthlySummary(c *gin.Context) {
 		return
 	}
 
-	month, _ := strconv.Atoi(monthStr)
-	year, _ := strconv.Atoi(yearStr)
+	month, err := strconv.Atoi(monthStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Mês inválido"})
+		return
+	}
+
+	year, err := strconv.Atoi(yearStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ano inválido"})
+		return
+	}
 
 	var incomesList []incomes.Income
-	database.DB.Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&incomesList)
+	if err := database.DB.Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&incomesList).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar rendas"})
+		return
+	}
 
 	var expensesList []expenses.Expense
-	database.DB.Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&expensesList)
+	if err := database.DB.Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&expensesList).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar despesas"})
+		return
+	}
 
-	var totalIncome, totalExpense float64
-	var totalSalary, totalAdiantamento, totalRendaExtra float64
+	var totalIncome float64
+	var totalExpense float64
 
-	var expensesFromSalary, expensesFromAdiantamento, expensesFromRendaExtra float64
+	var totalSalary float64
+	var totalAdiantamento float64
+	var totalRendaExtra float64
+
+	var totalSpentSalary float64
+	var totalSpentAdiantamento float64
+	var totalSpentRendaExtra float64
 
 	for _, income := range incomesList {
 		totalIncome += income.Amount
-		if income.Source == "Salário" {
+
+		switch normalizeMoneySource(income.Source) {
+		case "salario":
 			totalSalary += income.Amount
-		} else if income.Source == "Adiantamento" {
+		case "adiantamento":
 			totalAdiantamento += income.Amount
-		} else if income.Source == "Renda Extra" {
+		case "renda_extra":
 			totalRendaExtra += income.Amount
 		}
 	}
 
 	for _, expense := range expensesList {
 		totalExpense += expense.Amount
-		if expense.PaymentSource == "Salário" {
-			expensesFromSalary += expense.Amount
-		} else if expense.PaymentSource == "Adiantamento" {
-			expensesFromAdiantamento += expense.Amount
-		} else if expense.PaymentSource == "Renda Extra" {
-			expensesFromRendaExtra += expense.Amount
+
+		switch normalizeMoneySource(expense.PaymentSource) {
+		case "salario":
+			totalSpentSalary += expense.Amount
+		case "adiantamento":
+			totalSpentAdiantamento += expense.Amount
+		case "renda_extra":
+			totalSpentRendaExtra += expense.Amount
 		}
 	}
 
-	restanteSalario := totalSalary - expensesFromSalary
-	restanteAdiantamento := totalAdiantamento - expensesFromAdiantamento
-
-	restanteRendaExtra := totalRendaExtra - expensesFromRendaExtra
+	restanteSalario := totalSalary - totalSpentSalary
+	restanteAdiantamento := totalAdiantamento - totalSpentAdiantamento
+	restanteRendaExtra := totalRendaExtra - totalSpentRendaExtra
 
 	totalGeralDisponivel := totalIncome - totalExpense
 
 	c.JSON(http.StatusOK, gin.H{
-		"month":                  month,
-		"year":                   year,
-		"salario":                totalSalary,
-		"adiantamento":           totalAdiantamento,
-		"renda_extra_amt":        totalRendaExtra,
-		"restante_salario":       restanteSalario,
-		"restante_adiantamento":  restanteAdiantamento,
-		"restante_renda_extra":   restanteRendaExtra,
-		"total_expense":          totalExpense,
-		"total_geral_disponivel": totalGeralDisponivel,
-		"total_income":           totalIncome,
+		"month":                    month,
+		"year":                     year,
+		"total_income":             totalIncome,
+		"total_expense":            totalExpense,
+		"total_geral_disponivel":   totalGeralDisponivel,
+		"salario":                  totalSalary,
+		"adiantamento":             totalAdiantamento,
+		"renda_extra_amt":          totalRendaExtra,
+		"total_gasto_salario":      totalSpentSalary,
+		"total_gasto_adiantamento": totalSpentAdiantamento,
+		"total_gasto_renda_extra":  totalSpentRendaExtra,
+		"restante_salario":         restanteSalario,
+		"restante_adiantamento":    restanteAdiantamento,
+		"restante_renda_extra":     restanteRendaExtra,
 	})
 }
 
