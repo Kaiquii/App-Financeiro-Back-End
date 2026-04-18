@@ -14,6 +14,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 	{
 		expensesGroup.POST("/", createExpense)
 		expensesGroup.GET("/", getExpenses)
+		expensesGroup.GET("/:id", getExpenseByID)
 		expensesGroup.PATCH("/:id", updateExpense)
 		expensesGroup.DELETE("/:id", deleteExpense)
 	}
@@ -112,6 +113,24 @@ func getExpenses(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"total": len(expensesList), "expenses": expensesList})
 }
 
+func getExpenseByID(c *gin.Context) {
+	userID, ok := getUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não identificado"})
+		return
+	}
+
+	id := c.Param("id")
+	var expense Expense
+
+	if err := database.DB.Where("id = ? AND user_id = ?", id, userID).First(&expense).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Despesa não encontrada ou não pertence a você"})
+		return
+	}
+
+	c.JSON(http.StatusOK, expense)
+}
+
 func updateExpense(c *gin.Context) {
 	userID, ok := getUserID(c)
 	if !ok {
@@ -127,6 +146,10 @@ func updateExpense(c *gin.Context) {
 		return
 	}
 
+	originalDescription := expense.Description
+	originalMonth := expense.Month
+	originalYear := expense.Year
+
 	var updateData map[string]interface{}
 	if err := c.ShouldBindJSON(&updateData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos: " + err.Error()})
@@ -138,7 +161,6 @@ func updateExpense(c *gin.Context) {
 		if boolVal, ok := val.(bool); ok {
 			updateFuture = boolVal
 		}
-
 		delete(updateData, "update_future")
 	}
 
@@ -159,10 +181,15 @@ func updateExpense(c *gin.Context) {
 		delete(updateData, "month")
 		delete(updateData, "year")
 
-		database.DB.Model(&Expense{}).
+		err := database.DB.Model(&Expense{}).
 			Where("user_id = ? AND description = ? AND (year > ? OR (year = ? AND month > ?))",
-				userID, expense.Description, expense.Year, expense.Year, expense.Month).
-			Updates(updateData)
+				userID, originalDescription, originalYear, originalYear, originalMonth).
+			Updates(updateData).Error
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar despesas futuras"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Despesa atualizada com sucesso!"})
@@ -176,10 +203,25 @@ func deleteExpense(c *gin.Context) {
 	}
 
 	id := c.Param("id")
-	var expense Expense
+	deleteFuture := c.Query("delete_future") == "true"
 
+	var expense Expense
 	if err := database.DB.Where("id = ? AND user_id = ?", id, userID).First(&expense).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Despesa não encontrada ou não pertence a você"})
+		return
+	}
+
+	if deleteFuture {
+		err := database.DB.Where("user_id = ? AND description = ? AND (year > ? OR (year = ? AND month >= ?))",
+			userID, expense.Description, expense.Year, expense.Year, expense.Month).
+			Delete(&Expense{}).Error
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao deletar despesas em lote"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Despesa atual e todas as futuras foram removidas!"})
 		return
 	}
 
