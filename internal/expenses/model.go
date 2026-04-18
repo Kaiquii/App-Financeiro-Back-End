@@ -5,6 +5,7 @@ import "time"
 type Expense struct {
 	ID             uint      `json:"id" gorm:"primaryKey"`
 	UserID         uint      `json:"user_id"`
+	SeriesID       string    `json:"series_id" gorm:"index"`
 	CategoryID     uint      `json:"category_id"`
 	Amount         float64   `json:"amount"`
 	Description    string    `json:"description"`
@@ -23,6 +24,6 @@ type CreateExpenseRequest struct {
 	CategoryID    uint      `json:"category_id"`
 	PaymentSource string    `json:"payment_source"`
 	Date          time.Time `json:"date" binding:"required"`
-	Type          string    `json:"type"`
+	Type          string    `json:"type" binding:"required"`
 	Installments  int       `json:"installments"`
 }

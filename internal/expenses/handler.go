@@ -2,12 +2,34 @@ package expenses
 
 import (
 	"App_Financeiro_Back-end/internal/database"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
+
+const fixedExpenseHorizonMonths = 120
+
+func normalizeExpenseType(expenseType string) string {
+	switch strings.TrimSpace(strings.ToLower(expenseType)) {
+	case "única", "unica":
+		return "Única"
+	case "parcelada":
+		return "Parcelada"
+	case "fixa":
+		return "Fixa"
+	default:
+		return ""
+	}
+}
+
+func buildSeriesID(userID uint) string {
+	return fmt.Sprintf("expense-%d-%d", userID, time.Now().UnixNano())
+}
 
 func RegisterRoutes(rg *gin.RouterGroup) {
 	expensesGroup := rg.Group("/expenses")
@@ -41,19 +63,32 @@ func createExpense(c *gin.Context) {
 		return
 	}
 
+	expenseType := normalizeExpenseType(req.Type)
+	if expenseType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tipo inválido. Use Única, Parcelada ou Fixa."})
+		return
+	}
+
 	installments := req.Installments
 	if installments <= 0 {
 		installments = 1
 	}
 
-	amountPerInstallment := req.Amount
 	loopCount := 1
+	seriesID := ""
 
-	if req.Type == "Parcelada" && installments > 1 {
+	switch expenseType {
+	case "Única":
+		installments = 1
+
+	case "Parcelada":
 		loopCount = installments
-	} else if req.Type == "Fixa" {
-		loopCount = 12
-		installments = 12
+		seriesID = buildSeriesID(userID)
+
+	case "Fixa":
+		loopCount = fixedExpenseHorizonMonths
+		installments = 0
+		seriesID = buildSeriesID(userID)
 	}
 
 	for i := 1; i <= loopCount; i++ {
@@ -61,14 +96,15 @@ func createExpense(c *gin.Context) {
 
 		newExpense := Expense{
 			UserID:         userID,
-			Amount:         amountPerInstallment,
+			SeriesID:       seriesID,
+			Amount:         req.Amount,
 			Description:    req.Description,
 			CategoryID:     req.CategoryID,
 			PaymentSource:  req.PaymentSource,
 			Date:           installmentDate,
 			Month:          int(installmentDate.Month()),
 			Year:           installmentDate.Year(),
-			Type:           req.Type,
+			Type:           expenseType,
 			Installments:   installments,
 			CurrentInstall: i,
 		}
@@ -103,6 +139,16 @@ func getExpenses(c *gin.Context) {
 		if year, err := strconv.Atoi(yearStr); err == nil {
 			query = query.Where("year = ?", year)
 		}
+	}
+	typeStr := c.Query("type")
+
+	if typeStr != "" {
+		normalizedType := normalizeExpenseType(typeStr)
+		if normalizedType == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Tipo inválido. Use Única, Parcelada ou Fixa."})
+			return
+		}
+		query = query.Where("type = ?", normalizedType)
 	}
 
 	if err := query.Find(&expensesList).Error; err != nil {
@@ -146,7 +192,6 @@ func updateExpense(c *gin.Context) {
 		return
 	}
 
-	originalDescription := expense.Description
 	originalMonth := expense.Month
 	originalYear := expense.Year
 
@@ -164,11 +209,40 @@ func updateExpense(c *gin.Context) {
 		delete(updateData, "update_future")
 	}
 
+	if typeValue, exists := updateData["type"]; exists {
+		typeStr, ok := typeValue.(string)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Tipo inválido. Use Única, Parcelada ou Fixa."})
+			return
+		}
+
+		normalizedType := normalizeExpenseType(typeStr)
+		if normalizedType == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Tipo inválido. Use Única, Parcelada ou Fixa."})
+			return
+		}
+
+		updateData["type"] = normalizedType
+
+		if normalizedType == "Única" {
+			updateData["installments"] = 1
+		}
+		if normalizedType == "Fixa" {
+			updateData["installments"] = 0
+		}
+	}
+
 	if dateStr, ok := updateData["date"].(string); ok {
 		if parsedDate, err := time.Parse(time.RFC3339, dateStr); err == nil {
+			updateData["date"] = parsedDate
 			updateData["month"] = int(parsedDate.Month())
 			updateData["year"] = parsedDate.Year()
 		}
+	}
+
+	if expense.Type == "Fixa" {
+		updateFuture = true
+		updateData["installments"] = 0
 	}
 
 	if err := database.DB.Model(&expense).Updates(updateData).Error; err != nil {
@@ -180,10 +254,14 @@ func updateExpense(c *gin.Context) {
 		delete(updateData, "date")
 		delete(updateData, "month")
 		delete(updateData, "year")
+		delete(updateData, "id")
+		delete(updateData, "user_id")
+		delete(updateData, "series_id")
+		delete(updateData, "current_installment")
 
-		err := database.DB.Model(&Expense{}).
-			Where("user_id = ? AND description = ? AND (year > ? OR (year = ? AND month > ?))",
-				userID, originalDescription, originalYear, originalYear, originalMonth).
+		err := applySeriesScope(database.DB.Model(&Expense{}), expense).
+			Where("user_id = ? AND (year > ? OR (year = ? AND month > ?))",
+				userID, originalYear, originalYear, originalMonth).
 			Updates(updateData).Error
 
 		if err != nil {
@@ -211,9 +289,14 @@ func deleteExpense(c *gin.Context) {
 		return
 	}
 
+	if expense.Type == "Fixa" {
+		deleteFuture = true
+	}
+
 	if deleteFuture {
-		err := database.DB.Where("user_id = ? AND description = ? AND (year > ? OR (year = ? AND month >= ?))",
-			userID, expense.Description, expense.Year, expense.Year, expense.Month).
+		err := applySeriesScope(database.DB, expense).
+			Where("user_id = ? AND (year > ? OR (year = ? AND month >= ?))",
+				userID, expense.Year, expense.Year, expense.Month).
 			Delete(&Expense{}).Error
 
 		if err != nil {
@@ -231,4 +314,11 @@ func deleteExpense(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Despesa deletada com sucesso!"})
+}
+
+func applySeriesScope(query *gorm.DB, expense Expense) *gorm.DB {
+	if expense.SeriesID != "" {
+		return query.Where("series_id = ?", expense.SeriesID)
+	}
+	return query.Where("description = ?", expense.Description)
 }
