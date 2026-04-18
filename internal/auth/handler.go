@@ -96,7 +96,6 @@ func login(c *gin.Context) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": user.ID,
 		"email":   user.Email,
-		"role":    user.Role,
 		"exp":     time.Now().Add(time.Hour * 72).Unix(),
 	})
 
@@ -107,7 +106,14 @@ func login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Login realizado com sucesso!", "token": tokenString})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Login realizado com sucesso!",
+		"token":   tokenString,
+		"user": gin.H{
+			"name":  user.Name,
+			"email": user.Email,
+		},
+	})
 }
 
 func getUsers(c *gin.Context) {

@@ -38,8 +38,7 @@ Back-end em Go para controle financeiro pessoal.
 4. /api/categories/{{Category_ID}} -> DELETE -> Deletar categorias
 
 ## Perfil
-1. /api/users/profile/ -> GET -> Listar perfil de Usuario
-2. /api/users/profile/ -> PATCH -> Atualizar perfil de Usuario
+1. /api/users/profile/ -> PATCH -> Atualizar perfil de Usuario
 
 ## Como Rodar a API
 

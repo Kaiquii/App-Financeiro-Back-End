@@ -11,26 +11,8 @@ import (
 func RegisterRoutes(rg *gin.RouterGroup) {
 	usersGroup := rg.Group("/users")
 	{
-		usersGroup.GET("/profile", getProfile)
 		usersGroup.PATCH("/profile", updateProfile)
 	}
-}
-
-func getProfile(c *gin.Context) {
-	userIDObj, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não identificado"})
-		return
-	}
-	userID := userIDObj.(uint)
-
-	var user auth.User
-	if err := database.DB.Select("id, name, email").First(&user, userID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
-		return
-	}
-
-	c.JSON(http.StatusOK, user)
 }
 
 func updateProfile(c *gin.Context) {
