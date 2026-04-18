@@ -162,6 +162,21 @@ func deleteIncome(c *gin.Context) {
 		return
 	}
 
+	if income.Source == "Salário" || income.Source == "Adiantamento" || income.Source == "Renda Extra" {
+		err := database.DB.Where(
+			"user_id = ? AND source = ? AND (year > ? OR (year = ? AND month >= ?))",
+			userID, income.Source, income.Year, income.Year, income.Month,
+		).Delete(&Income{}).Error
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao deletar renda atual e futuras"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Renda atual e futuras deletadas com sucesso!"})
+		return
+	}
+
 	if err := database.DB.Delete(&income).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao deletar renda"})
 		return
