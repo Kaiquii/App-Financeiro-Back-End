@@ -155,14 +155,15 @@ func deleteIncome(c *gin.Context) {
 	}
 
 	id := c.Param("id")
-	var income Income
+	deleteFuture := c.Query("delete_future") == "true"
 
+	var income Income
 	if err := database.DB.Where("id = ? AND user_id = ?", id, userID).First(&income).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Renda não encontrada ou não pertence a você"})
 		return
 	}
 
-	if income.Source == "Salário" || income.Source == "Adiantamento" || income.Source == "Renda Extra" {
+	if deleteFuture {
 		err := database.DB.Where(
 			"user_id = ? AND source = ? AND (year > ? OR (year = ? AND month >= ?))",
 			userID, income.Source, income.Year, income.Year, income.Month,
