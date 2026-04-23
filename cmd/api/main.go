@@ -30,7 +30,7 @@ func main() {
 	router := gin.Default()
 
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://localhost:3000", "https://deploy.dominio.app"} // Liberado para o localhost e para o futuro deploy!
+	config.AllowOrigins = []string{"*"} // Liberado para o qlq dominio
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
 	router.Use(cors.New(config))
 
