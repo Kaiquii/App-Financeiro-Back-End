@@ -4,6 +4,7 @@ import (
 	"App_Financeiro_Back-end/internal/database"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -40,8 +41,20 @@ func createIncome(c *gin.Context) {
 	}
 
 	loopCount := 1
-	if req.Type == "Fixa" {
-		loopCount = 60
+
+	source := strings.TrimSpace(strings.ToLower(req.Source))
+
+	isRendaExtra := source == "renda extra" || source == "renda_extra"
+	isFixedIncome := req.Type == "Fixa"
+
+	if isFixedIncome {
+		if isRendaExtra {
+			if req.RepeatFuture {
+				loopCount = 60
+			}
+		} else {
+			loopCount = 60
+		}
 	}
 
 	currentMonth := req.Month
