@@ -8,7 +8,8 @@ Back-end em Go para controle financeiro pessoal.
 1. /api/auth/register -> POST -> Criar nova Conta
 2. /api/auth/login -> POST -> Autenticar usuário/Login
 3. /api/auth/users -> GET -> Listar os Usuários
-4. /api/auth/users -> PATCH -> Alterar senha
+4. /api/auth/forgot-password -> POST -> Enviar codigo de redefinicao de senha
+5. /api/auth/reset-password -> POST -> Redefinir senha com codigo
 
 ## Admin
 1. /api/admin/users/ID -> Delete -> Deletar Usuário, se usuário for Admin
