@@ -40,12 +40,22 @@ func createIncome(c *gin.Context) {
 		return
 	}
 
+	source := normalizeIncomeSource(req.Source)
+	if source == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Fonte inválida. Use Salário, Adiantamento ou Renda Extra."})
+		return
+	}
+
+	incomeType := normalizeIncomeType(req.Type)
+	if incomeType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tipo inválido. Use Única ou Fixa."})
+		return
+	}
+
 	loopCount := 1
 
-	source := strings.TrimSpace(strings.ToLower(req.Source))
-
-	isRendaExtra := source == "renda extra" || source == "renda_extra"
-	isFixedIncome := req.Type == "Fixa"
+	isRendaExtra := source == "Renda Extra"
+	isFixedIncome := incomeType == "Fixa"
 
 	if isFixedIncome {
 		if isRendaExtra {
@@ -63,7 +73,7 @@ func createIncome(c *gin.Context) {
 	for i := 0; i < loopCount; i++ {
 		newIncome := Income{
 			UserID: userID,
-			Source: req.Source,
+			Source: source,
 			Amount: req.Amount,
 			Month:  currentMonth,
 			Year:   currentYear,
@@ -197,4 +207,28 @@ func deleteIncome(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Renda deletada com sucesso!"})
+}
+
+func normalizeIncomeSource(source string) string {
+	switch strings.TrimSpace(strings.ToLower(source)) {
+	case "salário", "salario":
+		return "Salário"
+	case "adiantamento":
+		return "Adiantamento"
+	case "renda extra", "renda_extra":
+		return "Renda Extra"
+	default:
+		return ""
+	}
+}
+
+func normalizeIncomeType(incomeType string) string {
+	switch strings.TrimSpace(strings.ToLower(incomeType)) {
+	case "", "única", "unica":
+		return "Única"
+	case "fixa":
+		return "Fixa"
+	default:
+		return ""
+	}
 }
