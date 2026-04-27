@@ -5,13 +5,14 @@
 *.key
 
 # BINÁRIOS GERADOS PELO GO
-/api-financeira
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
 /api.exe
+/app.exe
+/api-financeira
 
 # TESTES E COBERTURA DE CÓDIGO
 *.test
