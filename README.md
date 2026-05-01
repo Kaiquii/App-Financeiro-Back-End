@@ -44,3 +44,12 @@ Back-end em Go para controle financeiro pessoal.
 ## Como Rodar a API
 
 1. go run cmd/api/main.go
+
+## Criar arquivo .tar
+1. docker build -t app-financeiro-api .
+2. docker save -o app-financeiro-backend.tar app-financeiro-api
+3. Passar o .tar e o docker-compose.yml para a pasta
+
+## Subir na VPS
+1. sudo docker load -i app-financeiro-backend.tar
+2. sudo docker compose up -d
