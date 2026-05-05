@@ -37,3 +37,8 @@ coverage.out
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Ignorar backups e imagens Docker
+*.tar
+*.dump
+migration-backup/
