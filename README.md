@@ -52,4 +52,16 @@ Back-end em Go para controle financeiro pessoal.
 
 ## Subir na VPS
 1. sudo docker load -i app-financeiro-backend.tar
-2. sudo docker compose up -d
+2. sudo docker compose up -d api
+
+# Pare apenas o contêiner da API atual
+- docker compose stop api
+
+# Remova o contêiner antigo (os dados do banco estão a salvo em volumes)
+- docker compose rm -f api
+
+# Carregue a nova imagem Docker que você transferiu
+- docker load -i app-financeiro-backend.tar
+
+# Inicie novamente a API utilizando a nova imagem
+- docker compose up -d api
