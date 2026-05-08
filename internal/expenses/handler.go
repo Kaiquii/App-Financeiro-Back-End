@@ -241,7 +241,6 @@ func updateExpense(c *gin.Context) {
 	}
 
 	if expense.Type == "Fixa" {
-		updateFuture = true
 		updateData["installments"] = 0
 	}
 
