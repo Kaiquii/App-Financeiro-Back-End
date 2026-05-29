@@ -29,6 +29,10 @@ services:
       - DB_DSN=host=db user=postgres password=4343 dbname=app_financeiro port=5432 sslmode=disable TimeZone=America/Sao_Paulo
       - JWT_SECRET=Kai@1020304056
       - PORT=8080
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=gemini-2.5-flash
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=llama-3.1-8b-instant
       - SMTP_HOST=smtp.gmail.com
       - SMTP_PORT=587
       - SMTP_EMAIL=appfinanceiro4@gmail.com
