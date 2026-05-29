@@ -1,6 +1,7 @@
 package main
 
 import (
+	"App_Financeiro_Back-end/internal/assistant"
 	"App_Financeiro_Back-end/internal/auth"
 	"App_Financeiro_Back-end/internal/categories"
 	"App_Financeiro_Back-end/internal/database"
@@ -22,7 +23,7 @@ func main() {
 
 	database.Connect()
 
-	err := database.DB.AutoMigrate(&auth.User{}, &auth.PasswordResetToken{}, &expenses.Expense{}, &incomes.Income{}, &categories.Category{})
+	err := database.DB.AutoMigrate(&auth.User{}, &auth.PasswordResetToken{}, &expenses.Expense{}, &incomes.Income{}, &categories.Category{}, &assistant.Conversation{}, &assistant.Message{})
 	if err != nil {
 		log.Fatalf("Erro ao rodar migrações: %v", err)
 	}
@@ -46,6 +47,7 @@ func main() {
 			reports.RegisterRoutes(protected)
 			categories.RegisterRoutes(protected)
 			users.RegisterRoutes(protected)
+			assistant.RegisterRoutes(protected)
 		}
 	}
 

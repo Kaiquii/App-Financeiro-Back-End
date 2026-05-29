@@ -41,6 +41,34 @@ Back-end em Go para controle financeiro pessoal.
 ## Perfil
 1. /api/users/profile/ -> PATCH -> Atualizar perfil de Usuario
 
+## Assistente IA
+1. /api/assistant/chat -> POST -> Conversar com o assistente financeiro
+2. /api/assistant/conversations -> GET -> Listar conversas salvas do usuario
+3. /api/assistant/conversations/ID/messages -> GET -> Listar mensagens de uma conversa
+4. /api/assistant/conversations/ID -> DELETE -> Apagar conversa
+
+Body:
+```json
+{
+  "message": "Quanto gastei do salario em maio?",
+  "conversation_id": 1,
+  "history": [
+    {
+      "role": "assistant",
+      "content": "Entendi a despesa Pao, R$ 4,00, paga com salario em maio. Posso cadastrar?"
+    }
+  ]
+}
+```
+
+Se conversation_id nao for enviado, a API cria uma nova conversa automaticamente e devolve o id na resposta.
+
+Variaveis de ambiente:
+1. GEMINI_API_KEY -> Chave da API do Gemini
+2. GEMINI_MODEL -> Modelo opcional. Padrao: gemini-2.5-flash
+3. GROQ_API_KEY -> Chave da API da Groq para fallback quando o Gemini atingir limite
+4. GROQ_MODEL -> Modelo opcional. Padrao: llama-3.1-8b-instant
+
 ## Como Rodar a API
 
 1. go run cmd/api/main.go
