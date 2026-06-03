@@ -27,7 +27,7 @@ type financialIntent struct {
 }
 
 func handleFinancialMessageWithContext(client textGenerator, userID uint, message string) (bool, string, string, any) {
-	intent, err := interpretFinancialIntent(client, message)
+	intent, err := interpretFinancialIntent(client, userID, message)
 	if err != nil {
 		if retryAfter, ok := geminiQuotaInfo(err); ok {
 			log.Printf("Assistant intent blocked by Gemini quota retry_after=%ds", retryAfter)
@@ -133,21 +133,24 @@ func handleFinancialMessageWithContext(client textGenerator, userID uint, messag
 	}
 }
 
-func interpretFinancialIntent(client textGenerator, message string) (financialIntent, error) {
+func interpretFinancialIntent(client textGenerator, userID uint, message string) (financialIntent, error) {
 	now := time.Now()
+	knownCategories := categoryNamesForPrompt(userID)
 	prompt := "Interprete a mensagem do usuario para o App Financeiro e responda somente JSON valido, sem markdown.\n" +
 		"Intencoes possiveis:\n" +
 		"- general: cumprimento, conversa comum ou pergunta que nao exige dados financeiros.\n" +
 		"- app_help: pergunta sobre como usar o app.\n" +
 		"- monthly_summary: pergunta sobre total gasto, saldo, salario, renda ou resumo de um periodo.\n" +
-		"- category_expenses: pergunta sobre gastos de uma categoria especifica.\n" +
+		"- category_expenses: pergunta sobre gastos de uma categoria especifica. Se o usuario disser categoria seguida de um nome, use esta intencao.\n" +
 		"- list_categories: pergunta sobre quais categorias o usuario tem cadastradas.\n" +
-		"- all_category_expenses: pergunta sobre gastos em cada categoria, divisao por categoria ou ranking de categorias.\n" +
+		"- all_category_expenses: pergunta sobre gastos em cada categoria, divisao por categoria, ranking de categorias ou todas as categorias, sem escolher uma categoria especifica.\n" +
 		"- create_expense: pedido para cadastrar/adicionar/registrar uma despesa.\n\n" +
 		"Campos do JSON: intent, reply, month, year, category_name, payment_source, description, amount, day, type, installments.\n" +
 		"Para general e app_help, preencha reply com uma resposta curta e util para o usuario.\n" +
 		"Use month/year do periodo citado. Se o usuario disser 'este mes', 'esse mes' ou 'ate agora', use " + strconv.Itoa(int(now.Month())) + "/" + strconv.Itoa(now.Year()) + ".\n" +
-		"Se o usuario citar uma categoria, preencha category_name com o nome exato entendido. Se nao houver categoria, use string vazia.\n" +
+		"Categorias cadastradas do usuario: " + knownCategories + ".\n" +
+		"Se o usuario citar uma categoria, preencha category_name com o nome exato entendido ou com o nome cadastrado correspondente. Se nao houver categoria especifica, use string vazia.\n" +
+		"Se category_name estiver preenchido, a intent deve ser category_expenses quando a pergunta for sobre gastos ou valores.\n" +
 		"payment_source deve ser Salario, Adiantamento, Renda Extra ou string vazia.\n" +
 		"type deve ser Unica, Parcelada, Fixa ou Unica se nao informado.\n" +
 		"Para create_expense, extraia description, amount, category_name, payment_source, month, year, day, type e installments.\n" +
@@ -190,7 +193,41 @@ func interpretFinancialIntent(client textGenerator, message string) (financialIn
 		intent.Installments = 1
 	}
 
-	return intent, nil
+	return normalizeInterpretedIntent(intent), nil
+}
+
+func categoryNamesForPrompt(userID uint) string {
+	var categoriesList []categories.Category
+	if err := database.DB.Where("user_id = ?", userID).Order("name asc").Find(&categoriesList).Error; err != nil {
+		return "nenhuma"
+	}
+
+	names := make([]string, 0, len(categoriesList))
+	for _, category := range categoriesList {
+		name := strings.TrimSpace(category.Name)
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+
+	if len(names) == 0 {
+		return "nenhuma"
+	}
+	return strings.Join(names, ", ")
+}
+
+func normalizeInterpretedIntent(intent financialIntent) financialIntent {
+	intent.Intent = strings.TrimSpace(intent.Intent)
+	if strings.TrimSpace(intent.CategoryName) == "" {
+		return intent
+	}
+
+	switch intent.Intent {
+	case "monthly_summary", "all_category_expenses":
+		intent.Intent = "category_expenses"
+	}
+
+	return intent
 }
 
 func cleanJSONText(text string) string {
@@ -299,6 +336,8 @@ func getCategoryExpenseSummary(userID uint, month int, year int, categoryName st
 			"category_name":  categoryName,
 			"payment_source": paymentSource,
 			"total_expense":  0,
+			"monthly_total":  0,
+			"percentage":     0,
 			"expenses":       []expenses.Expense{},
 		}, nil
 	}
@@ -318,6 +357,16 @@ func getCategoryExpenseSummary(userID uint, month int, year int, categoryName st
 		total += expense.Amount
 	}
 
+	monthlyTotal, err := getMonthlyExpenseTotal(userID, month, year, paymentSource)
+	if err != nil {
+		return nil, err
+	}
+
+	percentage := 0.0
+	if monthlyTotal > 0 {
+		percentage = (total / monthlyTotal) * 100
+	}
+
 	return map[string]any{
 		"month":          month,
 		"year":           year,
@@ -325,8 +374,23 @@ func getCategoryExpenseSummary(userID uint, month int, year int, categoryName st
 		"category_name":  category.Name,
 		"payment_source": paymentSource,
 		"total_expense":  roundMoney(total),
+		"monthly_total":  roundMoney(monthlyTotal),
+		"percentage":     roundMoney(percentage),
 		"expenses":       expensesList,
 	}, nil
+}
+
+func getMonthlyExpenseTotal(userID uint, month int, year int, paymentSource string) (float64, error) {
+	query := database.DB.Table("expenses").
+		Where("user_id = ? AND month = ? AND year = ?", userID, month, year)
+
+	if strings.TrimSpace(paymentSource) != "" {
+		query = query.Where("LOWER(payment_source) IN ?", paymentSourceVariants(paymentSource))
+	}
+
+	var total float64
+	err := query.Select("COALESCE(sum(amount), 0)").Scan(&total).Error
+	return total, err
 }
 
 func listUserCategories(userID uint) (map[string]any, error) {

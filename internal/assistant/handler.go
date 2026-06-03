@@ -406,20 +406,28 @@ func localToolReply(toolName string, toolResult any) string {
 	if toolName == "get_monthly_summary" {
 		month := numberToFloat(result["month"])
 		year := numberToFloat(result["year"])
+		totalIncome := numberToFloat(result["total_income"])
 		totalExpense := numberToFloat(result["total_expense"])
 		totalSpentSalary := numberToFloat(result["total_gasto_salario"])
+		totalSpentAdiantamento := numberToFloat(result["total_gasto_adiantamento"])
+		totalSpentRendaExtra := numberToFloat(result["total_gasto_renda_extra"])
 		totalAvailable := numberToFloat(result["total_geral_disponivel"])
 
-		return "Ate agora, em " + strconv.Itoa(int(month)) + "/" + strconv.Itoa(int(year)) +
-			", voce gastou R$ " + formatMoney(totalExpense) +
-			". Desse total, R$ " + formatMoney(totalSpentSalary) +
-			" saiu do salario. Seu saldo geral disponivel esta em R$ " + formatMoney(totalAvailable) + "."
+		return "Em " + monthLabel(month, year) +
+			", voce gastou R$ " + formatMoney(totalExpense) + ".\n\n" +
+			"De onde saiu:\n" +
+			"Salario: R$ " + formatMoney(totalSpentSalary) + "\n" +
+			"Adiantamento: R$ " + formatMoney(totalSpentAdiantamento) + "\n" +
+			"Renda Extra: R$ " + formatMoney(totalSpentRendaExtra) + "\n\n" +
+			"Entradas do mes: R$ " + formatMoney(totalIncome) + "\n" +
+			"Saldo restante: R$ " + formatMoney(totalAvailable) + "."
 	}
 
 	if toolName == "get_category_expenses" {
 		month := numberToFloat(result["month"])
 		year := numberToFloat(result["year"])
 		totalExpense := numberToFloat(result["total_expense"])
+		percentage := numberToFloat(result["percentage"])
 		categoryName, _ := result["category_name"].(string)
 		paymentSource, _ := result["payment_source"].(string)
 
@@ -428,9 +436,15 @@ func localToolReply(toolName string, toolResult any) string {
 			sourceText = " paga com " + paymentSource
 		}
 
-		return "Em " + strconv.Itoa(int(month)) + "/" + strconv.Itoa(int(year)) +
+		reply := "Em " + monthLabel(month, year) +
 			", voce gastou R$ " + formatMoney(totalExpense) +
-			" na categoria " + categoryName + sourceText + "."
+			" com " + categoryName + sourceText + "."
+
+		if percentage > 0 {
+			reply += "\nIsso representa " + formatPercentage(percentage) + "% dos seus gastos do mes."
+		}
+
+		return reply
 	}
 
 	if toolName == "list_categories" {
@@ -481,7 +495,58 @@ func numberToFloat(value any) float64 {
 
 func formatMoney(value float64) string {
 	text := strconv.FormatFloat(value, 'f', 2, 64)
+	parts := strings.Split(text, ".")
+	integerPart := parts[0]
+	decimalPart := "00"
+	if len(parts) > 1 {
+		decimalPart = parts[1]
+	}
+
+	sign := ""
+	if strings.HasPrefix(integerPart, "-") {
+		sign = "-"
+		integerPart = strings.TrimPrefix(integerPart, "-")
+	}
+
+	var grouped []string
+	for len(integerPart) > 3 {
+		grouped = append([]string{integerPart[len(integerPart)-3:]}, grouped...)
+		integerPart = integerPart[:len(integerPart)-3]
+	}
+	grouped = append([]string{integerPart}, grouped...)
+
+	return sign + strings.Join(grouped, ".") + "," + decimalPart
+}
+
+func formatPercentage(value float64) string {
+	text := strconv.FormatFloat(value, 'f', 2, 64)
 	return strings.Replace(text, ".", ",", 1)
+}
+
+func monthLabel(month float64, year float64) string {
+	months := []string{
+		"",
+		"janeiro",
+		"fevereiro",
+		"marco",
+		"abril",
+		"maio",
+		"junho",
+		"julho",
+		"agosto",
+		"setembro",
+		"outubro",
+		"novembro",
+		"dezembro",
+	}
+
+	monthNumber := int(month)
+	yearNumber := int(year)
+	if monthNumber < 1 || monthNumber > 12 {
+		return strconv.Itoa(monthNumber) + "/" + strconv.Itoa(yearNumber)
+	}
+
+	return months[monthNumber] + "/" + strconv.Itoa(yearNumber)
 }
 
 func systemPrompt() string {
