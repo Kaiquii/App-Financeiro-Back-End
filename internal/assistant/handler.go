@@ -1,7 +1,7 @@
 package assistant
 
 import (
-	"App_Financeiro_Back-end/internal/database"
+	"Sobra_Ai_Back-end/internal/database"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -298,7 +298,7 @@ func summarizeToolResult(client textGenerator, userMessage string, toolName stri
 		"Nao invente valores fora do JSON."
 
 	reply, err := client.generateText(GeminiRequest{
-		SystemInstruction: &GeminiContent{Parts: []GeminiPart{{Text: "Voce transforma resultados JSON do App Financeiro em respostas naturais, precisas e curtas."}}},
+		SystemInstruction: &GeminiContent{Parts: []GeminiPart{{Text: "Voce transforma resultados JSON do SobraAí em respostas naturais, precisas e curtas."}}},
 		Contents: []GeminiContent{{
 			Role:  "user",
 			Parts: []GeminiPart{{Text: prompt}},
@@ -551,7 +551,7 @@ func monthLabel(month float64, year float64) string {
 
 func systemPrompt() string {
 	currentDate := time.Now().Format("2006-01-02")
-	return "Voce e o assistente financeiro do App Financeiro. Data atual: " + currentDate + ". " +
+	return "Voce e o assistente financeiro do SobraAí. Data atual: " + currentDate + ". " +
 		"Responda apenas sobre o aplicativo e sobre os dados financeiros do usuario. " +
 		"Para perguntas de como usar o app, explique de forma simples: o usuario pode cadastrar despesas, rendas, categorias, ver resumo mensal, gastos por categoria e graficos. " +
 		"Para perguntas financeiras, use as ferramentas disponiveis em vez de inventar numeros. " +

@@ -1,9 +1,9 @@
 package reports
 
 import (
-	"App_Financeiro_Back-end/internal/database"
-	"App_Financeiro_Back-end/internal/expenses"
-	"App_Financeiro_Back-end/internal/incomes"
+	"Sobra_Ai_Back-end/internal/database"
+	"Sobra_Ai_Back-end/internal/expenses"
+	"Sobra_Ai_Back-end/internal/incomes"
 	"net/http"
 	"strconv"
 	"strings"

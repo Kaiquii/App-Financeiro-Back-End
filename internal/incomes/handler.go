@@ -1,7 +1,7 @@
 package incomes
 
 import (
-	"App_Financeiro_Back-end/internal/database"
+	"Sobra_Ai_Back-end/internal/database"
 	"net/http"
 	"strconv"
 	"strings"

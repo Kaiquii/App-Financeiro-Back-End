@@ -1,4 +1,4 @@
-module App_Financeiro_Back-end
+module Sobra_Ai_Back-end
 
 go 1.26
 

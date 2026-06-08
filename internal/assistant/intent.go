@@ -1,9 +1,9 @@
 package assistant
 
 import (
-	"App_Financeiro_Back-end/internal/categories"
-	"App_Financeiro_Back-end/internal/database"
-	"App_Financeiro_Back-end/internal/expenses"
+	"Sobra_Ai_Back-end/internal/categories"
+	"Sobra_Ai_Back-end/internal/database"
+	"Sobra_Ai_Back-end/internal/expenses"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -136,7 +136,7 @@ func handleFinancialMessageWithContext(client textGenerator, userID uint, messag
 func interpretFinancialIntent(client textGenerator, userID uint, message string) (financialIntent, error) {
 	now := time.Now()
 	knownCategories := categoryNamesForPrompt(userID)
-	prompt := "Interprete a mensagem do usuario para o App Financeiro e responda somente JSON valido, sem markdown.\n" +
+	prompt := "Interprete a mensagem do usuario para o SobraAí e responda somente JSON valido, sem markdown.\n" +
 		"Intencoes possiveis:\n" +
 		"- general: cumprimento, conversa comum ou pergunta que nao exige dados financeiros.\n" +
 		"- app_help: pergunta sobre como usar o app.\n" +

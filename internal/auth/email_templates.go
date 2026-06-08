@@ -18,7 +18,7 @@ func passwordResetEmailHTML(name string, code string) string {
 					<tr>
 						<td style="background-color:#2563eb;padding:24px 32px;text-align:center;">
 							<h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">
-								App Financeiro
+								SobraAí
 							</h1>
 						</td>
 					</tr>

@@ -1,7 +1,7 @@
 package expenses
 
 import (
-	"App_Financeiro_Back-end/internal/database"
+	"Sobra_Ai_Back-end/internal/database"
 	"fmt"
 	"net/http"
 	"strconv"

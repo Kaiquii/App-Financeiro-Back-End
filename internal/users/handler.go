@@ -1,8 +1,8 @@
 package users
 
 import (
-	"App_Financeiro_Back-end/internal/auth"
-	"App_Financeiro_Back-end/internal/database"
+	"Sobra_Ai_Back-end/internal/auth"
+	"Sobra_Ai_Back-end/internal/database"
 	"net/http"
 
 	"github.com/gin-gonic/gin"

@@ -1,4 +1,4 @@
-# Finance App - API
+# SobraAí - API
 
 Back-end em Go para controle financeiro pessoal.
 

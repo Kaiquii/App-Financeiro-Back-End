@@ -1,14 +1,14 @@
 package main
 
 import (
-	"App_Financeiro_Back-end/internal/assistant"
-	"App_Financeiro_Back-end/internal/auth"
-	"App_Financeiro_Back-end/internal/categories"
-	"App_Financeiro_Back-end/internal/database"
-	"App_Financeiro_Back-end/internal/expenses"
-	"App_Financeiro_Back-end/internal/incomes"
-	"App_Financeiro_Back-end/internal/reports"
-	"App_Financeiro_Back-end/internal/users"
+	"Sobra_Ai_Back-end/internal/assistant"
+	"Sobra_Ai_Back-end/internal/auth"
+	"Sobra_Ai_Back-end/internal/categories"
+	"Sobra_Ai_Back-end/internal/database"
+	"Sobra_Ai_Back-end/internal/expenses"
+	"Sobra_Ai_Back-end/internal/incomes"
+	"Sobra_Ai_Back-end/internal/reports"
+	"Sobra_Ai_Back-end/internal/users"
 	"log"
 
 	"github.com/gin-contrib/cors"
