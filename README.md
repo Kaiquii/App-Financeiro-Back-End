@@ -40,6 +40,19 @@ Back-end em Go para controle financeiro pessoal.
 
 ## Perfil
 1. /api/users/profile/ -> PATCH -> Atualizar perfil de Usuario
+2. /api/users/profile -> GET -> Ver perfil do usuario logado
+3. /api/users/profile/photo -> PATCH -> Atualizar foto de perfil
+4. /api/users/profile/photo -> DELETE -> Remover foto de perfil
+
+Upload da foto:
+```txt
+Content-Type: multipart/form-data
+Campo: photo
+Formatos: JPG, JPEG, PNG ou GIF
+Limite: 5 MB
+```
+
+A API salva a foto como `/uploads/users/ID/avatar.jpg` e guarda apenas `avatar_url` no banco.
 
 ## Assistente IA
 1. /api/assistant/chat -> POST -> Conversar com o assistente financeiro
@@ -68,6 +81,7 @@ Variaveis de ambiente:
 2. GEMINI_MODEL -> Modelo opcional. Padrao: gemini-2.5-flash
 3. GROQ_API_KEY -> Chave da API da Groq para fallback quando o Gemini atingir limite
 4. GROQ_MODEL -> Modelo opcional. Padrao: llama-3.1-8b-instant
+5. UPLOADS_DIR -> Pasta onde fotos de perfil sao salvas. Padrao: uploads
 
 ## Como Rodar a API
 
@@ -80,7 +94,8 @@ Variaveis de ambiente:
 
 ## Subir na VPS
 1. sudo docker load -i app-financeiro-backend.tar
-2. sudo docker compose up -d api
+2. sudo mkdir -p /var/app-financeiro/uploads
+3. sudo docker compose up -d api
 
 # Pare apenas o contêiner da API atual
 - docker compose stop api

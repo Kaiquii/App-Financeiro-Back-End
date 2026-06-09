@@ -116,9 +116,10 @@ func login(c *gin.Context) {
 		"message": "Login realizado com sucesso!",
 		"token":   tokenString,
 		"user": gin.H{
-			"name":  user.Name,
-			"email": user.Email,
-			"role":  user.Role,
+			"name":       user.Name,
+			"email":      user.Email,
+			"role":       user.Role,
+			"avatar_url": user.AvatarURL,
 		},
 	})
 }

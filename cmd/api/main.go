@@ -8,8 +8,10 @@ import (
 	"Sobra_Ai_Back-end/internal/expenses"
 	"Sobra_Ai_Back-end/internal/incomes"
 	"Sobra_Ai_Back-end/internal/reports"
+	"Sobra_Ai_Back-end/internal/uploads"
 	"Sobra_Ai_Back-end/internal/users"
 	"log"
+	"os"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -29,11 +31,15 @@ func main() {
 	}
 
 	router := gin.Default()
+	if err := os.MkdirAll(uploads.Dir(), 0755); err != nil {
+		log.Fatalf("Erro ao preparar pasta de uploads: %v", err)
+	}
 
 	config := cors.DefaultConfig()
 	config.AllowOrigins = []string{"*"}
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
 	router.Use(cors.New(config))
+	router.Static(uploads.PublicPath, uploads.Dir())
 
 	api := router.Group("/api")
 	{
