@@ -1,19 +1,26 @@
 package auth
 
 import (
+	"Sobra_Ai_Back-end/internal/assistant"
+	"Sobra_Ai_Back-end/internal/categories"
 	"Sobra_Ai_Back-end/internal/database"
+	"Sobra_Ai_Back-end/internal/expenses"
+	"Sobra_Ai_Back-end/internal/incomes"
+	"Sobra_Ai_Back-end/internal/uploads"
 	"crypto/rand"
 	"fmt"
 	"math/big"
 	"net/http"
 	"net/smtp"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 func RegisterRoutes(rg *gin.RouterGroup) {
@@ -154,12 +161,67 @@ func deleteUserByAdmin(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.Delete(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao deletar usuário"})
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao iniciar exclusao do usuario"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Usuário deletado com sucesso"})
+	if err := deleteUserData(tx, user.ID); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao deletar dados do usuario"})
+		return
+	}
+
+	if err := tx.Delete(&user).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao deletar usuario"})
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao confirmar exclusao do usuario"})
+		return
+	}
+
+	if err := deleteUserAvatar(user.ID); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Usuario e dados deletados com sucesso, mas houve erro ao remover a foto de perfil",
+			"warning": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Usuario e todos os dados dele foram deletados com sucesso"})
+}
+
+func deleteUserData(tx *gorm.DB, userID uint) error {
+	deletions := []func() error{
+		func() error { return tx.Where("user_id = ?", userID).Delete(&assistant.Message{}).Error },
+		func() error { return tx.Where("user_id = ?", userID).Delete(&assistant.Conversation{}).Error },
+		func() error { return tx.Where("user_id = ?", userID).Delete(&expenses.Expense{}).Error },
+		func() error { return tx.Where("user_id = ?", userID).Delete(&incomes.Income{}).Error },
+		func() error { return tx.Where("user_id = ?", userID).Delete(&categories.Category{}).Error },
+		func() error { return tx.Where("user_id = ?", userID).Delete(&PasswordResetToken{}).Error },
+	}
+
+	for _, deleteFn := range deletions {
+		if err := deleteFn(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func deleteUserAvatar(userID uint) error {
+	storage, err := uploads.NewStorage()
+	if err != nil {
+		return err
+	}
+
+	userIDText := strconv.FormatUint(uint64(userID), 10)
+	return storage.Delete(uploads.UserAvatarKey(userIDText))
 }
 
 func revokeUserAccessByAdmin(c *gin.Context) {

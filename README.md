@@ -12,9 +12,11 @@ Back-end em Go para controle financeiro pessoal.
 5. /api/auth/reset-password -> POST -> Redefinir senha com codigo
 
 ## Admin
-1. /api/admin/users/ID -> Delete -> Deletar Usuario, se usuario for Admin
+1. /api/admin/users/ID -> Delete -> Deletar Usuario e todos os dados dele, se usuario for Admin
 2. /api/admin/users/ID/revoke-access -> PATCH -> Revogar acesso de usuario
 3. /api/admin/users/ID/restore-access -> PATCH -> Liberar acesso de usuario bloqueado
+
+O delete admin remove despesas, rendas, categorias, conversas/mensagens do assistente, codigos de redefinicao de senha e foto de perfil. Para apenas bloquear uso do app sem apagar historico, use `revoke-access`.
 
 ## Despesas
 1. /api/expenses/ -> POST -> Criar nova Despesa
