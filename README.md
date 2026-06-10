@@ -54,6 +54,16 @@ Limite: 5 MB
 
 A API salva a foto como `/uploads/users/ID/avatar.jpg` e guarda apenas `avatar_url` no banco.
 
+Storage da foto de perfil:
+1. AVATAR_STORAGE_DRIVER -> `local` ou `oci`. Padrao: local
+2. UPLOADS_DIR -> Pasta local onde fotos de perfil sao salvas. Padrao: uploads
+3. OCI_NAMESPACE -> Namespace do Object Storage
+4. OCI_BUCKET -> Nome do bucket do Object Storage
+5. OCI_REGION -> Regiao do bucket. Padrao: sa-saopaulo-1
+6. OCI_ACCESS_KEY -> Access Key da Customer Secret Key
+7. OCI_SECRET_KEY -> Secret Key da Customer Secret Key
+8. OCI_PUBLIC_BASE_URL -> URL publica opcional para CDN/bucket customizado
+
 ## Assistente IA
 1. /api/assistant/chat -> POST -> Conversar com o assistente financeiro
 2. /api/assistant/conversations -> GET -> Listar conversas salvas do usuario
@@ -81,7 +91,7 @@ Variaveis de ambiente:
 2. GEMINI_MODEL -> Modelo opcional. Padrao: gemini-2.5-flash
 3. GROQ_API_KEY -> Chave da API da Groq para fallback quando o Gemini atingir limite
 4. GROQ_MODEL -> Modelo opcional. Padrao: llama-3.1-8b-instant
-5. UPLOADS_DIR -> Pasta onde fotos de perfil sao salvas. Padrao: uploads
+5. UPLOADS_DIR -> Pasta onde fotos de perfil sao salvas quando AVATAR_STORAGE_DRIVER=local. Padrao: uploads
 
 ## Como Rodar a API
 

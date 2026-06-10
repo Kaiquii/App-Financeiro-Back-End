@@ -4,14 +4,13 @@ import (
 	"Sobra_Ai_Back-end/internal/auth"
 	"Sobra_Ai_Back-end/internal/database"
 	"Sobra_Ai_Back-end/internal/uploads"
+	"bytes"
 	"image"
 	"image/color"
 	_ "image/gif"
 	"image/jpeg"
 	_ "image/png"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -113,26 +112,25 @@ func updateProfilePhoto(c *gin.Context) {
 
 	avatar := resizeCenterCrop(img, avatarSize)
 	userIDText := strconv.FormatUint(uint64(userID), 10)
-	userDir := filepath.Join(uploads.Dir(), "users", userIDText)
-	if err := os.MkdirAll(userDir, 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao preparar pasta da foto"})
-		return
-	}
-
-	avatarPath := filepath.Join(userDir, "avatar.jpg")
-	output, err := os.Create(avatarPath)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar foto"})
-		return
-	}
-	defer output.Close()
-
-	if err := jpeg.Encode(output, avatar, &jpeg.Options{Quality: avatarJPEGQuality}); err != nil {
+	var output bytes.Buffer
+	if err := jpeg.Encode(&output, avatar, &jpeg.Options{Quality: avatarJPEGQuality}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar foto"})
 		return
 	}
 
-	avatarURL := uploads.PublicURL("users", userIDText, "avatar.jpg")
+	storage, err := uploads.NewStorage()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao configurar storage da foto"})
+		return
+	}
+
+	objectKey := uploads.UserAvatarKey(userIDText)
+	avatarURL, err := storage.Save(objectKey, output.Bytes(), "image/jpeg")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar foto"})
+		return
+	}
+
 	if err := database.DB.Model(&auth.User{}).Where("id = ?", userID).Update("avatar_url", avatarURL).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar foto do perfil"})
 		return
@@ -152,8 +150,13 @@ func deleteProfilePhoto(c *gin.Context) {
 	}
 
 	userIDText := strconv.FormatUint(uint64(userID), 10)
-	avatarPath := filepath.Join(uploads.Dir(), "users", userIDText, "avatar.jpg")
-	if err := os.Remove(avatarPath); err != nil && !os.IsNotExist(err) {
+	storage, err := uploads.NewStorage()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao configurar storage da foto"})
+		return
+	}
+
+	if err := storage.Delete(uploads.UserAvatarKey(userIDText)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao remover foto"})
 		return
 	}
