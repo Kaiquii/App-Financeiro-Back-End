@@ -35,6 +35,8 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 	adminGroup.Use(AuthMiddleware(), AdminMiddleware())
 	{
 		adminGroup.DELETE("/users/:id", deleteUserByAdmin)
+		adminGroup.PATCH("/users/:id/revoke-access", revokeUserAccessByAdmin)
+		adminGroup.PATCH("/users/:id/restore-access", restoreUserAccessByAdmin)
 	}
 }
 
@@ -98,6 +100,11 @@ func login(c *gin.Context) {
 		return
 	}
 
+	if user.AccessBlocked {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Acesso revogado. Entre em contato com o suporte."})
+		return
+	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": user.ID,
 		"email":   user.Email,
@@ -116,10 +123,11 @@ func login(c *gin.Context) {
 		"message": "Login realizado com sucesso!",
 		"token":   tokenString,
 		"user": gin.H{
-			"name":       user.Name,
-			"email":      user.Email,
-			"role":       user.Role,
-			"avatar_url": user.AvatarURL,
+			"name":           user.Name,
+			"email":          user.Email,
+			"role":           user.Role,
+			"avatar_url":     user.AvatarURL,
+			"access_blocked": user.AccessBlocked,
 		},
 	})
 }
@@ -152,6 +160,96 @@ func deleteUserByAdmin(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Usuário deletado com sucesso"})
+}
+
+func revokeUserAccessByAdmin(c *gin.Context) {
+	adminID, ok := currentAdminID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Administrador nao identificado"})
+		return
+	}
+
+	user, ok := findManagedUser(c)
+	if !ok {
+		return
+	}
+
+	if user.ID == adminID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Nao e permitido revogar o proprio acesso"})
+		return
+	}
+
+	if user.Role == "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Nao e permitido revogar acesso de outro administrador"})
+		return
+	}
+
+	now := time.Now()
+	if err := database.DB.Model(&user).Updates(map[string]interface{}{
+		"access_blocked":    true,
+		"access_blocked_at": &now,
+	}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao revogar acesso do usuario"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Acesso do usuario revogado com sucesso",
+		"user":    accessUserResponse(user.ID, user.Name, user.Email, user.Role, true, &now),
+	})
+}
+
+func restoreUserAccessByAdmin(c *gin.Context) {
+	user, ok := findManagedUser(c)
+	if !ok {
+		return
+	}
+
+	if err := database.DB.Model(&user).Updates(map[string]interface{}{
+		"access_blocked":    false,
+		"access_blocked_at": nil,
+	}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao liberar acesso do usuario"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Acesso do usuario liberado com sucesso",
+		"user":    accessUserResponse(user.ID, user.Name, user.Email, user.Role, false, nil),
+	})
+}
+
+func currentAdminID(c *gin.Context) (uint, bool) {
+	adminIDObj, exists := c.Get("user_id")
+	if !exists {
+		return 0, false
+	}
+
+	adminID, ok := adminIDObj.(uint)
+	return adminID, ok
+}
+
+func findManagedUser(c *gin.Context) (User, bool) {
+	id := c.Param("id")
+
+	var user User
+	if err := database.DB.First(&user, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Usuario nao encontrado"})
+		return user, false
+	}
+
+	return user, true
+}
+
+func accessUserResponse(id uint, name string, email string, role string, blocked bool, blockedAt *time.Time) gin.H {
+	return gin.H{
+		"id":                id,
+		"name":              name,
+		"email":             email,
+		"role":              role,
+		"access_blocked":    blocked,
+		"access_blocked_at": blockedAt,
+	}
 }
 
 func generateResetCode() (string, error) {

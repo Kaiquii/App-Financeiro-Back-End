@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"Sobra_Ai_Back-end/internal/database"
 	"fmt"
 	"net/http"
 	"os"
@@ -42,17 +43,38 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			c.Set("user_email", claims["email"])
-
-			if userID, ok := claims["user_id"].(float64); ok {
-				c.Set("user_id", uint(userID))
-			}
-
-			if role, ok := claims["role"].(string); ok {
-				c.Set("user_role", role)
-			}
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token invalido"})
+			c.Abort()
+			return
 		}
+
+		userIDClaim, ok := claims["user_id"].(float64)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token sem usuario identificado"})
+			c.Abort()
+			return
+		}
+
+		userID := uint(userIDClaim)
+		var user User
+		if err := database.DB.First(&user, userID).Error; err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario nao encontrado"})
+			c.Abort()
+			return
+		}
+
+		if user.AccessBlocked {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Acesso revogado. Entre em contato com o suporte."})
+			c.Abort()
+			return
+		}
+
+		c.Set("user_id", user.ID)
+		c.Set("user_email", user.Email)
+		c.Set("user_role", user.Role)
+		c.Set("user", user)
 
 		c.Next()
 	}

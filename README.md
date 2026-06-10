@@ -12,7 +12,9 @@ Back-end em Go para controle financeiro pessoal.
 5. /api/auth/reset-password -> POST -> Redefinir senha com codigo
 
 ## Admin
-1. /api/admin/users/ID -> Delete -> Deletar Usuário, se usuário for Admin
+1. /api/admin/users/ID -> Delete -> Deletar Usuario, se usuario for Admin
+2. /api/admin/users/ID/revoke-access -> PATCH -> Revogar acesso de usuario
+3. /api/admin/users/ID/restore-access -> PATCH -> Liberar acesso de usuario bloqueado
 
 ## Despesas
 1. /api/expenses/ -> POST -> Criar nova Despesa

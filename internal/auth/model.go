@@ -14,12 +14,14 @@ type LoginRequest struct {
 }
 
 type User struct {
-	ID        uint   `gorm:"primaryKey" json:"id"`
-	Name      string `json:"name"`
-	Email     string `gorm:"uniqueIndex" json:"email"`
-	Password  string `json:"-"`
-	Role      string `gorm:"type:varchar(20);default:user" json:"role"`
-	AvatarURL string `json:"avatar_url"`
+	ID              uint       `gorm:"primaryKey" json:"id"`
+	Name            string     `json:"name"`
+	Email           string     `gorm:"uniqueIndex" json:"email"`
+	Password        string     `json:"-"`
+	Role            string     `gorm:"type:varchar(20);default:user" json:"role"`
+	AvatarURL       string     `json:"avatar_url"`
+	AccessBlocked   bool       `gorm:"default:false" json:"access_blocked"`
+	AccessBlockedAt *time.Time `json:"access_blocked_at,omitempty"`
 }
 
 type PasswordResetToken struct {
