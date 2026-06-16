@@ -98,50 +98,6 @@ Variaveis de ambiente:
 4. GROQ_MODEL -> Modelo opcional. Padrao: llama-3.1-8b-instant
 5. UPLOADS_DIR -> Pasta onde fotos de perfil sao salvas quando AVATAR_STORAGE_DRIVER=local. Padrao: uploads
 
-## Proximo passo pendente - Caixinhas
-
-A funcionalidade de Caixinhas ainda esta pendente e planejada em `docs/caixinhas.md`.
-
-Ideia principal:
-- Usuario cria uma caixinha com nome, descricao, valor da meta, meta mensal e prazo.
-- Quando o usuario guarda dinheiro, a API cria um aporte e tambem uma despesa vinculada.
-- A despesa entra na categoria especial `Caixinhas`, que fica visivel e contabilizada nos relatorios.
-- Cada aporte e uma despesa diferente.
-- Aportes podem ser `Unica` ou `Fixa`.
-- Aportes nao podem ser `Parcelada`.
-- Aporte fixo deve seguir o mesmo padrao atual de despesas fixas.
-- Editar a despesa vinculada atualiza o saldo da caixinha.
-- Deletar a despesa vinculada equivale a retirar o dinheiro da caixinha.
-- A caixinha so pode ser deletada quando o saldo atual for zero.
-- Ao deletar uma caixinha zerada, o historico dela tambem deve ser apagado.
-- Nao deve calcular rendimento real. A projecao deve usar apenas saldo atual e meta mensal.
-
-Endpoints planejados:
-```http
-GET    /api/saving-boxes
-POST   /api/saving-boxes
-GET    /api/saving-boxes/:id
-PATCH  /api/saving-boxes/:id
-DELETE /api/saving-boxes/:id
-
-POST   /api/saving-boxes/:id/deposits
-GET    /api/saving-boxes/:id/history
-GET    /api/saving-boxes/:id/projection
-GET    /api/saving-boxes/summary
-```
-
-O JSON planejado para essa funcionalidade deve ficar em portugues, por exemplo:
-```json
-{
-  "nome": "Viagem",
-  "descricao": "Dinheiro para viajar em dezembro",
-  "valor_meta": 3000,
-  "meta_mensal": 300,
-  "mes_prazo": 12,
-  "ano_prazo": 2026,
-  "status": "ativa"
-}
-```
 
 ## Como Rodar a API
 
