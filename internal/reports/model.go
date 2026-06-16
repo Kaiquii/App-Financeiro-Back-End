@@ -13,6 +13,64 @@ type CategoryResult struct {
 	Percentage   float64 `json:"percentage"`
 }
 
+type MonthComparisonResponse struct {
+	CurrentMonth   int                            `json:"mes_atual"`
+	CurrentYear    int                            `json:"ano_atual"`
+	ComparedMonth  int                            `json:"mes_comparado"`
+	ComparedYear   int                            `json:"ano_comparado"`
+	Summary        MonthComparisonSummary         `json:"resumo"`
+	Categories     []MonthComparisonCategory      `json:"categorias"`
+	PaymentSources []MonthComparisonPaymentSource `json:"fontes_pagamento"`
+	ExpenseTypes   []MonthComparisonExpenseType   `json:"tipos_despesa"`
+	Insights       []string                       `json:"insights"`
+}
+
+type MonthComparisonSummary struct {
+	CurrentIncome     float64 `json:"receitas_atual"`
+	PreviousIncome    float64 `json:"receitas_comparado"`
+	IncomeDifference  float64 `json:"diferenca_receitas"`
+	IncomePercentage  float64 `json:"percentual_receitas"`
+	IncomeStatus      string  `json:"status_receitas"`
+	CurrentExpense    float64 `json:"despesas_atual"`
+	PreviousExpense   float64 `json:"despesas_comparado"`
+	ExpenseDifference float64 `json:"diferenca_despesas"`
+	ExpensePercentage float64 `json:"percentual_despesas"`
+	ExpenseStatus     string  `json:"status_despesas"`
+	CurrentBalance    float64 `json:"saldo_atual"`
+	PreviousBalance   float64 `json:"saldo_comparado"`
+	BalanceDifference float64 `json:"diferenca_saldo"`
+	BalancePercentage float64 `json:"percentual_saldo"`
+	BalanceStatus     string  `json:"status_saldo"`
+}
+
+type MonthComparisonCategory struct {
+	CategoryID     uint    `json:"categoria_id"`
+	CategoryName   string  `json:"categoria_nome"`
+	CurrentAmount  float64 `json:"valor_atual"`
+	PreviousAmount float64 `json:"valor_comparado"`
+	Difference     float64 `json:"diferenca"`
+	Percentage     float64 `json:"percentual"`
+	Status         string  `json:"status"`
+}
+
+type MonthComparisonPaymentSource struct {
+	PaymentSource  string  `json:"fonte_pagamento"`
+	CurrentAmount  float64 `json:"valor_atual"`
+	PreviousAmount float64 `json:"valor_comparado"`
+	Difference     float64 `json:"diferenca"`
+	Percentage     float64 `json:"percentual"`
+	Status         string  `json:"status"`
+}
+
+type MonthComparisonExpenseType struct {
+	Type           string  `json:"tipo"`
+	CurrentAmount  float64 `json:"valor_atual"`
+	PreviousAmount float64 `json:"valor_comparado"`
+	Difference     float64 `json:"diferenca"`
+	Percentage     float64 `json:"percentual"`
+	Status         string  `json:"status"`
+}
+
 type InstallmentCommitmentsResponse struct {
 	BaseMonth int                           `json:"mes_base"`
 	BaseYear  int                           `json:"ano_base"`

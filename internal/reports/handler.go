@@ -5,6 +5,8 @@ import (
 	"Sobra_Ai_Back-end/internal/database"
 	"Sobra_Ai_Back-end/internal/expenses"
 	"Sobra_Ai_Back-end/internal/incomes"
+	"fmt"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -22,6 +24,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 		reportsGroup.GET("/chart", getChartData)
 		reportsGroup.GET("/yearly-summary", getYearlySummary)
 		reportsGroup.GET("/installment-commitments", getInstallmentCommitments)
+		reportsGroup.GET("/month-comparison", getMonthComparison)
 	}
 }
 
@@ -265,6 +268,439 @@ func getYearlySummary(c *gin.Context) {
 		"economia_total": economiaTotal,
 		"media_mensal":   mediaMensal,
 	})
+}
+
+func getMonthComparison(c *gin.Context) {
+	userIDObj, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario nao identificado"})
+		return
+	}
+	userID := userIDObj.(uint)
+
+	monthStr := c.Query("month")
+	yearStr := c.Query("year")
+	if monthStr == "" || yearStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Mes e ano sao obrigatorios. Ex: ?month=6&year=2026"})
+		return
+	}
+
+	month, err := strconv.Atoi(monthStr)
+	if err != nil || month < 1 || month > 12 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Mes invalido"})
+		return
+	}
+
+	year, err := strconv.Atoi(yearStr)
+	if err != nil || year < 2000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ano invalido"})
+		return
+	}
+
+	comparedMonth, comparedYear, err := comparisonMonthYear(c, month, year)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var currentIncomes []incomes.Income
+	if err := database.DB.Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&currentIncomes).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar rendas do mes atual"})
+		return
+	}
+
+	var comparedIncomes []incomes.Income
+	if err := database.DB.Where("user_id = ? AND month = ? AND year = ?", userID, comparedMonth, comparedYear).Find(&comparedIncomes).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar rendas do mes comparado"})
+		return
+	}
+
+	var currentExpenses []expenses.Expense
+	if err := database.DB.Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&currentExpenses).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar despesas do mes atual"})
+		return
+	}
+
+	var comparedExpenses []expenses.Expense
+	if err := database.DB.Where("user_id = ? AND month = ? AND year = ?", userID, comparedMonth, comparedYear).Find(&comparedExpenses).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar despesas do mes comparado"})
+		return
+	}
+
+	categoryNames, err := loadCategoryNames(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar categorias"})
+		return
+	}
+
+	response := buildMonthComparisonResponse(
+		currentIncomes,
+		comparedIncomes,
+		currentExpenses,
+		comparedExpenses,
+		categoryNames,
+		month,
+		year,
+		comparedMonth,
+		comparedYear,
+	)
+
+	c.JSON(http.StatusOK, response)
+}
+
+type comparisonTotals struct {
+	current  float64
+	previous float64
+}
+
+func buildMonthComparisonResponse(currentIncomes []incomes.Income, previousIncomes []incomes.Income, currentExpenses []expenses.Expense, previousExpenses []expenses.Expense, categoryNames map[uint]string, currentMonth int, currentYear int, comparedMonth int, comparedYear int) MonthComparisonResponse {
+	currentIncomeTotal := sumIncomeAmounts(currentIncomes)
+	previousIncomeTotal := sumIncomeAmounts(previousIncomes)
+	currentExpenseTotal := sumExpenseAmounts(currentExpenses)
+	previousExpenseTotal := sumExpenseAmounts(previousExpenses)
+	currentBalance := currentIncomeTotal - currentExpenseTotal
+	previousBalance := previousIncomeTotal - previousExpenseTotal
+
+	summary := MonthComparisonSummary{
+		CurrentIncome:     roundMoney(currentIncomeTotal),
+		PreviousIncome:    roundMoney(previousIncomeTotal),
+		IncomeDifference:  roundMoney(currentIncomeTotal - previousIncomeTotal),
+		IncomePercentage:  percentageDifference(currentIncomeTotal, previousIncomeTotal),
+		IncomeStatus:      comparisonStatus(currentIncomeTotal - previousIncomeTotal),
+		CurrentExpense:    roundMoney(currentExpenseTotal),
+		PreviousExpense:   roundMoney(previousExpenseTotal),
+		ExpenseDifference: roundMoney(currentExpenseTotal - previousExpenseTotal),
+		ExpensePercentage: percentageDifference(currentExpenseTotal, previousExpenseTotal),
+		ExpenseStatus:     comparisonStatus(currentExpenseTotal - previousExpenseTotal),
+		CurrentBalance:    roundMoney(currentBalance),
+		PreviousBalance:   roundMoney(previousBalance),
+		BalanceDifference: roundMoney(currentBalance - previousBalance),
+		BalancePercentage: percentageDifference(currentBalance, previousBalance),
+		BalanceStatus:     balanceStatus(currentBalance - previousBalance),
+	}
+
+	categoriesComparison := buildCategoryComparisons(currentExpenses, previousExpenses, categoryNames)
+	paymentSourcesComparison := buildPaymentSourceComparisons(currentExpenses, previousExpenses)
+	expenseTypesComparison := buildExpenseTypeComparisons(currentExpenses, previousExpenses)
+	insights := buildMonthComparisonInsights(summary, categoriesComparison)
+
+	return MonthComparisonResponse{
+		CurrentMonth:   currentMonth,
+		CurrentYear:    currentYear,
+		ComparedMonth:  comparedMonth,
+		ComparedYear:   comparedYear,
+		Summary:        summary,
+		Categories:     categoriesComparison,
+		PaymentSources: paymentSourcesComparison,
+		ExpenseTypes:   expenseTypesComparison,
+		Insights:       insights,
+	}
+}
+
+func buildCategoryComparisons(currentExpenses []expenses.Expense, previousExpenses []expenses.Expense, categoryNames map[uint]string) []MonthComparisonCategory {
+	totalsByCategory := make(map[uint]*comparisonTotals)
+
+	for _, expense := range currentExpenses {
+		totals := totalsByCategory[expense.CategoryID]
+		if totals == nil {
+			totals = &comparisonTotals{}
+			totalsByCategory[expense.CategoryID] = totals
+		}
+		totals.current += expense.Amount
+	}
+
+	for _, expense := range previousExpenses {
+		totals := totalsByCategory[expense.CategoryID]
+		if totals == nil {
+			totals = &comparisonTotals{}
+			totalsByCategory[expense.CategoryID] = totals
+		}
+		totals.previous += expense.Amount
+	}
+
+	comparisons := make([]MonthComparisonCategory, 0, len(totalsByCategory))
+	for categoryID, totals := range totalsByCategory {
+		categoryName := categoryNames[categoryID]
+		if strings.TrimSpace(categoryName) == "" {
+			categoryName = "Sem categoria"
+		}
+
+		difference := totals.current - totals.previous
+		comparisons = append(comparisons, MonthComparisonCategory{
+			CategoryID:     categoryID,
+			CategoryName:   categoryName,
+			CurrentAmount:  roundMoney(totals.current),
+			PreviousAmount: roundMoney(totals.previous),
+			Difference:     roundMoney(difference),
+			Percentage:     percentageDifference(totals.current, totals.previous),
+			Status:         comparisonStatus(difference),
+		})
+	}
+
+	sort.Slice(comparisons, func(i, j int) bool {
+		left := math.Abs(comparisons[i].Difference)
+		right := math.Abs(comparisons[j].Difference)
+		if left != right {
+			return left > right
+		}
+		return comparisons[i].CategoryName < comparisons[j].CategoryName
+	})
+
+	return comparisons
+}
+
+func buildPaymentSourceComparisons(currentExpenses []expenses.Expense, previousExpenses []expenses.Expense) []MonthComparisonPaymentSource {
+	totalsBySource := make(map[string]*comparisonTotals)
+
+	for _, expense := range currentExpenses {
+		source := paymentSourceLabel(expense.PaymentSource)
+		totals := totalsBySource[source]
+		if totals == nil {
+			totals = &comparisonTotals{}
+			totalsBySource[source] = totals
+		}
+		totals.current += expense.Amount
+	}
+
+	for _, expense := range previousExpenses {
+		source := paymentSourceLabel(expense.PaymentSource)
+		totals := totalsBySource[source]
+		if totals == nil {
+			totals = &comparisonTotals{}
+			totalsBySource[source] = totals
+		}
+		totals.previous += expense.Amount
+	}
+
+	comparisons := make([]MonthComparisonPaymentSource, 0, len(totalsBySource))
+	for source, totals := range totalsBySource {
+		difference := totals.current - totals.previous
+		comparisons = append(comparisons, MonthComparisonPaymentSource{
+			PaymentSource:  source,
+			CurrentAmount:  roundMoney(totals.current),
+			PreviousAmount: roundMoney(totals.previous),
+			Difference:     roundMoney(difference),
+			Percentage:     percentageDifference(totals.current, totals.previous),
+			Status:         comparisonStatus(difference),
+		})
+	}
+
+	sort.Slice(comparisons, func(i, j int) bool {
+		left := math.Abs(comparisons[i].Difference)
+		right := math.Abs(comparisons[j].Difference)
+		if left != right {
+			return left > right
+		}
+		return comparisons[i].PaymentSource < comparisons[j].PaymentSource
+	})
+
+	return comparisons
+}
+
+func buildExpenseTypeComparisons(currentExpenses []expenses.Expense, previousExpenses []expenses.Expense) []MonthComparisonExpenseType {
+	totalsByType := make(map[string]*comparisonTotals)
+
+	for _, expense := range currentExpenses {
+		expenseType := expenseTypeLabel(expense.Type)
+		totals := totalsByType[expenseType]
+		if totals == nil {
+			totals = &comparisonTotals{}
+			totalsByType[expenseType] = totals
+		}
+		totals.current += expense.Amount
+	}
+
+	for _, expense := range previousExpenses {
+		expenseType := expenseTypeLabel(expense.Type)
+		totals := totalsByType[expenseType]
+		if totals == nil {
+			totals = &comparisonTotals{}
+			totalsByType[expenseType] = totals
+		}
+		totals.previous += expense.Amount
+	}
+
+	comparisons := make([]MonthComparisonExpenseType, 0, len(totalsByType))
+	for expenseType, totals := range totalsByType {
+		difference := totals.current - totals.previous
+		comparisons = append(comparisons, MonthComparisonExpenseType{
+			Type:           expenseType,
+			CurrentAmount:  roundMoney(totals.current),
+			PreviousAmount: roundMoney(totals.previous),
+			Difference:     roundMoney(difference),
+			Percentage:     percentageDifference(totals.current, totals.previous),
+			Status:         comparisonStatus(difference),
+		})
+	}
+
+	sort.Slice(comparisons, func(i, j int) bool {
+		left := math.Abs(comparisons[i].Difference)
+		right := math.Abs(comparisons[j].Difference)
+		if left != right {
+			return left > right
+		}
+		return comparisons[i].Type < comparisons[j].Type
+	})
+
+	return comparisons
+}
+
+func buildMonthComparisonInsights(summary MonthComparisonSummary, categories []MonthComparisonCategory) []string {
+	insights := make([]string, 0, 4)
+
+	if summary.ExpenseDifference > 0 {
+		insights = append(insights, fmt.Sprintf("Seu gasto total aumentou R$ %.2f em relacao ao mes anterior.", math.Abs(summary.ExpenseDifference)))
+	} else if summary.ExpenseDifference < 0 {
+		insights = append(insights, fmt.Sprintf("Voce gastou R$ %.2f a menos que no mes anterior.", math.Abs(summary.ExpenseDifference)))
+	} else {
+		insights = append(insights, "Seu gasto total ficou igual ao mes anterior.")
+	}
+
+	if summary.IncomeDifference > 0 {
+		insights = append(insights, fmt.Sprintf("Suas receitas aumentaram R$ %.2f.", math.Abs(summary.IncomeDifference)))
+	} else if summary.IncomeDifference < 0 {
+		insights = append(insights, fmt.Sprintf("Suas receitas cairam R$ %.2f.", math.Abs(summary.IncomeDifference)))
+	}
+
+	if summary.BalanceDifference > 0 {
+		insights = append(insights, fmt.Sprintf("Seu saldo final melhorou R$ %.2f.", math.Abs(summary.BalanceDifference)))
+	} else if summary.BalanceDifference < 0 {
+		insights = append(insights, fmt.Sprintf("Seu saldo final piorou R$ %.2f.", math.Abs(summary.BalanceDifference)))
+	}
+
+	if category := mostIncreasedCategory(categories); category != nil && category.Difference > 0 {
+		insights = append(insights, fmt.Sprintf("%s foi a categoria que mais subiu.", category.CategoryName))
+	}
+
+	return insights
+}
+
+func mostIncreasedCategory(categories []MonthComparisonCategory) *MonthComparisonCategory {
+	var selected *MonthComparisonCategory
+	for i := range categories {
+		if categories[i].Difference <= 0 {
+			continue
+		}
+		if selected == nil || categories[i].Difference > selected.Difference {
+			selected = &categories[i]
+		}
+	}
+	return selected
+}
+
+func sumIncomeAmounts(items []incomes.Income) float64 {
+	var total float64
+	for _, income := range items {
+		total += income.Amount
+	}
+	return total
+}
+
+func sumExpenseAmounts(items []expenses.Expense) float64 {
+	var total float64
+	for _, expense := range items {
+		total += expense.Amount
+	}
+	return total
+}
+
+func previousMonthYear(month int, year int) (int, int) {
+	if month == 1 {
+		return 12, year - 1
+	}
+	return month - 1, year
+}
+
+func comparisonMonthYear(c *gin.Context, currentMonth int, currentYear int) (int, int, error) {
+	compareMonthStr := c.Query("compare_month")
+	compareYearStr := c.Query("compare_year")
+	if compareMonthStr == "" && compareYearStr == "" {
+		month, year := previousMonthYear(currentMonth, currentYear)
+		return month, year, nil
+	}
+
+	if compareMonthStr == "" || compareYearStr == "" {
+		return 0, 0, fmt.Errorf("compare_month e compare_year devem ser enviados juntos")
+	}
+
+	compareMonth, err := strconv.Atoi(compareMonthStr)
+	if err != nil || compareMonth < 1 || compareMonth > 12 {
+		return 0, 0, fmt.Errorf("Mes de comparacao invalido")
+	}
+
+	compareYear, err := strconv.Atoi(compareYearStr)
+	if err != nil || compareYear < 2000 {
+		return 0, 0, fmt.Errorf("Ano de comparacao invalido")
+	}
+
+	return compareMonth, compareYear, nil
+}
+
+func percentageDifference(current float64, previous float64) float64 {
+	if previous == 0 {
+		if current == 0 {
+			return 0
+		}
+		return 100
+	}
+	return roundMoney(((current - previous) / math.Abs(previous)) * 100)
+}
+
+func comparisonStatus(difference float64) string {
+	if difference > 0 {
+		return "subiu"
+	}
+	if difference < 0 {
+		return "caiu"
+	}
+	return "igual"
+}
+
+func balanceStatus(difference float64) string {
+	if difference > 0 {
+		return "melhorou"
+	}
+	if difference < 0 {
+		return "piorou"
+	}
+	return "igual"
+}
+
+func paymentSourceLabel(source string) string {
+	switch normalizeMoneySource(source) {
+	case "salario":
+		return "Salario"
+	case "adiantamento":
+		return "Adiantamento"
+	case "renda_extra":
+		return "Renda Extra"
+	default:
+		source = strings.TrimSpace(source)
+		if source == "" {
+			return "Nao informado"
+		}
+		return source
+	}
+}
+
+func expenseTypeLabel(expenseType string) string {
+	normalizedType := strings.TrimSpace(strings.ToLower(expenseType))
+	if strings.Contains(normalizedType, "nica") {
+		return "Unica"
+	}
+
+	switch normalizedType {
+	case "fixa":
+		return "Fixa"
+	case "parcelada":
+		return "Parcelada"
+	default:
+		expenseType = strings.TrimSpace(expenseType)
+		if expenseType == "" {
+			return "Nao informado"
+		}
+		return expenseType
+	}
 }
 
 func getInstallmentCommitments(c *gin.Context) {

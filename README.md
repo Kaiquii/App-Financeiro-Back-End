@@ -36,6 +36,7 @@ O delete admin remove despesas, rendas, categorias, conversas/mensagens do assis
 3. /api/reports/chart?year=2026 -> GET -> Ver Dados para o Gráfico de Barras
 4. /api/reports/yearly-summary?year=2026 -> GET -> Ver Média Mensal
 5. /api/reports/installment-commitments?months=12&month=6&year=2026&include_current_month_as_paid=true -> GET -> Ver compromissos parcelados
+6. /api/reports/month-comparison?month=6&year=2026&compare_month=5&compare_year=2026 -> GET -> Comparar o mes selecionado com outro mes
 
 ## Categorias
 1. /api/categories/ -> POST -> Criar categoria
@@ -97,51 +98,6 @@ Variaveis de ambiente:
 3. GROQ_API_KEY -> Chave da API da Groq para fallback quando o Gemini atingir limite
 4. GROQ_MODEL -> Modelo opcional. Padrao: llama-3.1-8b-instant
 5. UPLOADS_DIR -> Pasta onde fotos de perfil sao salvas quando AVATAR_STORAGE_DRIVER=local. Padrao: uploads
-
-## Proximo passo pendente - Caixinhas
-
-A funcionalidade de Caixinhas ainda esta pendente e planejada em `docs/caixinhas.md`.
-
-Ideia principal:
-- Usuario cria uma caixinha com nome, descricao, valor da meta, meta mensal e prazo.
-- Quando o usuario guarda dinheiro, a API cria um aporte e tambem uma despesa vinculada.
-- A despesa entra na categoria especial `Caixinhas`, que fica visivel e contabilizada nos relatorios.
-- Cada aporte e uma despesa diferente.
-- Aportes podem ser `Unica` ou `Fixa`.
-- Aportes nao podem ser `Parcelada`.
-- Aporte fixo deve seguir o mesmo padrao atual de despesas fixas.
-- Editar a despesa vinculada atualiza o saldo da caixinha.
-- Deletar a despesa vinculada equivale a retirar o dinheiro da caixinha.
-- A caixinha so pode ser deletada quando o saldo atual for zero.
-- Ao deletar uma caixinha zerada, o historico dela tambem deve ser apagado.
-- Nao deve calcular rendimento real. A projecao deve usar apenas saldo atual e meta mensal.
-
-Endpoints planejados:
-```http
-GET    /api/saving-boxes
-POST   /api/saving-boxes
-GET    /api/saving-boxes/:id
-PATCH  /api/saving-boxes/:id
-DELETE /api/saving-boxes/:id
-
-POST   /api/saving-boxes/:id/deposits
-GET    /api/saving-boxes/:id/history
-GET    /api/saving-boxes/:id/projection
-GET    /api/saving-boxes/summary
-```
-
-O JSON planejado para essa funcionalidade deve ficar em portugues, por exemplo:
-```json
-{
-  "nome": "Viagem",
-  "descricao": "Dinheiro para viajar em dezembro",
-  "valor_meta": 3000,
-  "meta_mensal": 300,
-  "mes_prazo": 12,
-  "ano_prazo": 2026,
-  "status": "ativa"
-}
-```
 
 ## Como Rodar a API
 
