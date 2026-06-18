@@ -1,126 +1,91 @@
-# SobraAí - API
+# SobraAi - API
 
-Back-end em Go para controle financeiro pessoal.
+Back-end em Go do app SobraAi, responsavel por autenticacao, usuarios, despesas, rendas, categorias, relatorios, assistente IA e foto de perfil.
 
-# Rotas da API
+[Ver rotas da API](docs/api-routes.md)
 
-## Auth
-1. /api/auth/register -> POST -> Criar nova Conta
-2. /api/auth/login -> POST -> Autenticar usuário/Login
-3. /api/auth/users -> GET -> Listar os Usuários
-4. /api/auth/forgot-password -> POST -> Enviar codigo de redefinicao de senha
-5. /api/auth/reset-password -> POST -> Redefinir senha com codigo
+## Resumo Do Projeto
 
-## Admin
-1. /api/admin/users/ID -> Delete -> Deletar Usuario e todos os dados dele, se usuario for Admin
-2. /api/admin/users/ID/revoke-access -> PATCH -> Revogar acesso de usuario
-3. /api/admin/users/ID/restore-access -> PATCH -> Liberar acesso de usuario bloqueado
+O projeto roda uma API HTTP em Go usando Gin, GORM e PostgreSQL.
 
-O delete admin remove despesas, rendas, categorias, conversas/mensagens do assistente, codigos de redefinicao de senha e foto de perfil. Para apenas bloquear uso do app sem apagar historico, use `revoke-access`.
+Fluxo principal:
 
-## Despesas
-1. /api/expenses/ -> POST -> Criar nova Despesa
-2. /api/expenses?month=03&year=2026 -> GET -> Listar Despesas
-3. /api/expenses/ID -> PATCH -> Atualizar Despesas
-4. /api/expenses/ID -> DELETE -> Deletar Despesas
+1. A API conecta no PostgreSQL usando `DB_DSN`.
+2. As tabelas sao migradas automaticamente ao iniciar.
+3. Rotas publicas ficam em `/api/auth`.
+4. Rotas protegidas precisam de `Authorization: Bearer TOKEN`.
+5. A API pode salvar foto de perfil em storage local ou Oracle Object Storage.
 
-## Salário
-1. /api/incomes/ -> POST -> Cadastrar Salário
-2. /api/incomes/ -> GET -> Ver Salários
-3. /api/incomes/ID -> PATCH -> Atualizar Salário
-4. /api/incomes/ID -> DELETE -> Deletar Salário
+Principais variaveis:
 
-## Resumo
-1. /api/reports/summary?month=3&year=2026 -> GET -> Ver Resumo financeiro
-2. /api/reports/categories?month=3&year=2026 -> GET -> Ver Resumo de Categorias
-3. /api/reports/chart?year=2026 -> GET -> Ver Dados para o Gráfico de Barras
-4. /api/reports/yearly-summary?year=2026 -> GET -> Ver Média Mensal
-5. /api/reports/installment-commitments?months=12&month=6&year=2026&include_current_month_as_paid=true -> GET -> Ver compromissos parcelados
-6. /api/reports/month-comparison?month=6&year=2026&compare_month=5&compare_year=2026 -> GET -> Comparar o mes selecionado com outro mes
-
-## Categorias
-1. /api/categories/ -> POST -> Criar categoria
-2. /api/categories/ -> GET -> Listar categorias
-3. /api/categories/{{Category_ID}} -> PATCH -> Atualizar categorias
-4. /api/categories/{{Category_ID}} -> DELETE -> Deletar categorias
-
-## Perfil
-1. /api/users/profile/ -> PATCH -> Atualizar perfil de Usuario
-2. /api/users/profile -> GET -> Ver perfil do usuario logado
-3. /api/users/profile/photo -> PATCH -> Atualizar foto de perfil
-4. /api/users/profile/photo -> DELETE -> Remover foto de perfil
-
-Upload da foto:
 ```txt
-Content-Type: multipart/form-data
-Campo: photo
-Formatos: JPG, JPEG, PNG ou GIF
-Limite: 5 MB
+PORT=8080
+DB_DSN=host=db user=postgres password=4343 dbname=app_financeiro port=5432 sslmode=disable TimeZone=America/Sao_Paulo
+JWT_SECRET=sua_chave
+GIN_MODE=release
 ```
 
-A API salva a foto como `/uploads/users/ID/avatar.jpg` e guarda apenas `avatar_url` no banco.
+## Como Subir Na VM Pela Primeira Vez
 
-Storage da foto de perfil:
-1. AVATAR_STORAGE_DRIVER -> `local` ou `oci`. Padrao: local
-2. UPLOADS_DIR -> Pasta local onde fotos de perfil sao salvas. Padrao: uploads
-3. OCI_NAMESPACE -> Namespace do Object Storage
-4. OCI_BUCKET -> Nome do bucket do Object Storage
-5. OCI_REGION -> Regiao do bucket. Padrao: sa-saopaulo-1
-6. OCI_ACCESS_KEY -> Access Key da Customer Secret Key
-7. OCI_SECRET_KEY -> Secret Key da Customer Secret Key
-8. OCI_PUBLIC_BASE_URL -> URL publica opcional para CDN/bucket customizado
+Na sua maquina local, gere a imagem:
 
-## Assistente IA
-1. /api/assistant/chat -> POST -> Conversar com o assistente financeiro
-2. /api/assistant/conversations -> GET -> Listar conversas salvas do usuario
-3. /api/assistant/conversations/ID/messages -> GET -> Listar mensagens de uma conversa
-4. /api/assistant/conversations/ID -> DELETE -> Apagar conversa
-
-Body:
-```json
-{
-  "message": "Quanto gastei do salario em maio?",
-  "conversation_id": 1,
-  "history": [
-    {
-      "role": "assistant",
-      "content": "Entendi a despesa Pao, R$ 4,00, paga com salario em maio. Posso cadastrar?"
-    }
-  ]
-}
+```bash
+docker build -t app-financeiro-api .
+docker save -o app-financeiro-backend.tar app-financeiro-api
 ```
 
-Se conversation_id nao for enviado, a API cria uma nova conversa automaticamente e devolve o id na resposta.
+Envie para a VM:
 
-Variaveis de ambiente:
-1. GEMINI_API_KEY -> Chave da API do Gemini
-2. GEMINI_MODEL -> Modelo opcional. Padrao: gemini-2.5-flash
-3. GROQ_API_KEY -> Chave da API da Groq para fallback quando o Gemini atingir limite
-4. GROQ_MODEL -> Modelo opcional. Padrao: llama-3.1-8b-instant
-5. UPLOADS_DIR -> Pasta onde fotos de perfil sao salvas quando AVATAR_STORAGE_DRIVER=local. Padrao: uploads
+```txt
+app-financeiro-backend.tar
+docker-compose.yml
+```
 
-## Como Rodar a API
+Na VM:
 
-1. go run cmd/api/main.go
+```bash
+cd /home/ubuntu/app-financeiro
+sudo docker load -i app-financeiro-backend.tar
+sudo mkdir -p /var/app-financeiro/uploads
+sudo docker compose up -d
+```
 
-## Criar arquivo .tar
-1. docker build -t app-financeiro-api .
-2. docker save -o app-financeiro-backend.tar app-financeiro-api
-3. Passar o .tar e o docker-compose.yml para a pasta
+Conferir se subiu:
 
-## Subir na VPS
-1. sudo docker load -i app-financeiro-backend.tar
-2. sudo mkdir -p /var/app-financeiro/uploads
-3. sudo docker compose up -d api
+```bash
+sudo docker ps
+sudo docker logs -f app_financeiro_api
+```
 
-# Pare apenas o contêiner da API atual
-- docker compose stop api
+Esse primeiro `docker compose up -d` sobe a API e o banco.
 
-# Remova o contêiner antigo (os dados do banco estão a salvo em volumes)
-- docker compose rm -f api
+## Como Atualizar Somente A API Na VM
 
-# Carregue a nova imagem Docker que você transferiu
-- docker load -i app-financeiro-backend.tar
+Use quando o banco ja existe e voce quer trocar apenas o back-end.
 
-# Inicie novamente a API utilizando a nova imagem
-- docker compose up -d api
+Na maquina local, gere um novo `.tar`:
+
+```bash
+docker build -t app-financeiro-api .
+docker save -o app-financeiro-backend.tar app-financeiro-api
+```
+
+Envie o novo `app-financeiro-backend.tar` para a VM.
+
+Na VM:
+
+```bash
+cd /home/ubuntu/app-financeiro
+sudo docker load -i app-financeiro-backend.tar
+sudo docker compose up -d --no-deps --force-recreate api
+```
+
+Esse comando recria somente o container da API e nao mexe no banco.
+
+Conferir logs:
+
+```bash
+sudo docker logs -f app_financeiro_api
+```
+
+Importante: nao use `docker compose down -v`, porque o `-v` remove volumes e pode apagar os dados do banco.
