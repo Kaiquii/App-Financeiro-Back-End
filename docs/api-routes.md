@@ -15,20 +15,20 @@ Authorization: Bearer TOKEN
 ## Auth
 
 1. `/api/auth/register` -> POST -> Criar nova conta
-2. `/api/auth/login` -> POST -> Autenticar usuario/login
-3. `/api/auth/users` -> GET -> Listar usuarios
-4. `/api/auth/forgot-password` -> POST -> Enviar codigo de redefinicao de senha
-5. `/api/auth/reset-password` -> POST -> Redefinir senha com codigo
+2. `/api/auth/login` -> POST -> Autenticar usuário/login
+3. `/api/auth/users` -> GET -> Listar usuários
+4. `/api/auth/forgot-password` -> POST -> Enviar código de redefinição de senha
+5. `/api/auth/reset-password` -> POST -> Redefinir senha com código
 
 ## Admin
 
-1. `/api/admin/users/ID` -> DELETE -> Deletar usuario e todos os dados dele
-2. `/api/admin/users/ID/revoke-access` -> PATCH -> Revogar acesso de usuario
-3. `/api/admin/users/ID/restore-access` -> PATCH -> Liberar acesso de usuario bloqueado
+1. `/api/admin/users/ID` -> DELETE -> Deletar usuário e todos os dados dele
+2. `/api/admin/users/ID/revoke-access` -> PATCH -> Revogar acesso de usuário
+3. `/api/admin/users/ID/restore-access` -> PATCH -> Liberar acesso de usuário bloqueado
 
-Observacao:
+Observação:
 
-O delete admin remove despesas, rendas, categorias, conversas/mensagens do assistente, codigos de redefinicao de senha e foto de perfil. Para apenas bloquear o uso do app sem apagar historico, use `revoke-access`.
+O delete admin remove despesas, rendas, categorias, conversas/mensagens do assistente, códigos de redefinição de senha e foto de perfil. Para apenas bloquear o uso do app sem apagar histórico, use `revoke-access`.
 
 ## Despesas
 
@@ -42,12 +42,12 @@ O delete admin remove despesas, rendas, categorias, conversas/mensagens do assis
 Tipos aceitos:
 
 ```txt
-Unica
+Única
 Parcelada
 Fixa
 ```
 
-No PATCH, o body pode usar `update_future: true` para atualizar despesas futuras da mesma serie.
+No PATCH, o body pode usar `update_future: true` para atualizar despesas futuras da mesma série.
 
 ## Rendas
 
@@ -59,7 +59,7 @@ No PATCH, o body pode usar `update_future: true` para atualizar despesas futuras
 Fontes aceitas:
 
 ```txt
-Salario
+Salário
 Adiantamento
 Renda Extra
 ```
@@ -67,21 +67,21 @@ Renda Extra
 Tipos aceitos:
 
 ```txt
-Unica
+Única
 Fixa
 ```
 
 No PATCH, o body pode usar `update_future: true` para atualizar rendas futuras da mesma fonte.
 
-## Relatorios
+## Relatórios
 
 1. `/api/reports/summary?month=6&year=2026` -> GET -> Ver resumo financeiro
 2. `/api/reports/categories?month=6&year=2026` -> GET -> Ver resumo por categorias
-3. `/api/reports/chart?year=2026` -> GET -> Ver dados para grafico anual
-4. `/api/reports/yearly-summary?year=2026` -> GET -> Ver media mensal e economia total do ano
+3. `/api/reports/chart?year=2026` -> GET -> Ver dados para gráfico anual
+4. `/api/reports/yearly-summary?year=2026` -> GET -> Ver média mensal e economia total do ano
 5. `/api/reports/installment-commitments?months=12&month=6&year=2026&include_current_month_as_paid=true` -> GET -> Ver compromissos parcelados
-6. `/api/reports/month-comparison?month=6&year=2026` -> GET -> Comparar o mes selecionado com o mes anterior
-7. `/api/reports/month-comparison?month=6&year=2026&compare_month=1&compare_year=2026` -> GET -> Comparar o mes selecionado com outro mes
+6. `/api/reports/month-comparison?month=6&year=2026` -> GET -> Comparar o mês selecionado com o mês anterior
+7. `/api/reports/month-comparison?month=6&year=2026&compare_month=1&compare_year=2026` -> GET -> Comparar o mês selecionado com outro mês
 
 ## Categorias
 
@@ -92,8 +92,8 @@ No PATCH, o body pode usar `update_future: true` para atualizar rendas futuras d
 
 ## Perfil
 
-1. `/api/users/profile` -> GET -> Ver perfil do usuario logado
-2. `/api/users/profile/` -> PATCH -> Atualizar perfil do usuario
+1. `/api/users/profile` -> GET -> Ver perfil do usuário logado
+2. `/api/users/profile/` -> PATCH -> Atualizar perfil do usuário
 3. `/api/users/profile/photo` -> PATCH -> Atualizar foto de perfil
 4. `/api/users/profile/photo` -> DELETE -> Remover foto de perfil
 
@@ -111,7 +111,7 @@ A API salva a foto como `/uploads/users/ID/avatar.jpg` quando usa storage local 
 ## Assistente IA
 
 1. `/api/assistant/chat` -> POST -> Conversar com o assistente financeiro
-2. `/api/assistant/conversations` -> GET -> Listar conversas salvas do usuario
+2. `/api/assistant/conversations` -> GET -> Listar conversas salvas do usuário
 3. `/api/assistant/conversations/ID/messages` -> GET -> Listar mensagens de uma conversa
 4. `/api/assistant/conversations/ID` -> DELETE -> Apagar conversa
 
@@ -119,16 +119,15 @@ Body do chat:
 
 ```json
 {
-  "message": "Quanto gastei do salario em maio?",
+  "message": "Quanto gastei do salário em maio?",
   "conversation_id": 1,
   "history": [
     {
       "role": "assistant",
-      "content": "Entendi a despesa Pao, R$ 4,00, paga com salario em maio. Posso cadastrar?"
+      "content": "Entendi a despesa Pão, R$ 4,00, paga com salário em maio. Posso cadastrar?"
     }
   ]
 }
 ```
 
-Se `conversation_id` nao for enviado, a API cria uma nova conversa automaticamente e devolve o id na resposta.
-
+Se `conversation_id` não for enviado, a API cria uma nova conversa automaticamente e devolve o id na resposta.

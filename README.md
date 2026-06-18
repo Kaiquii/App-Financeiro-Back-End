@@ -1,6 +1,6 @@
-# SobraAi - API
+# SobraAí - API
 
-Back-end em Go do app SobraAi, responsavel por autenticacao, usuarios, despesas, rendas, categorias, relatorios, assistente IA e foto de perfil.
+Back-end em Go do app SobraAí, responsável por autenticação, usuários, despesas, rendas, categorias, relatórios, assistente IA e foto de perfil.
 
 [Ver rotas da API](docs/api-routes.md)
 
@@ -11,12 +11,12 @@ O projeto roda uma API HTTP em Go usando Gin, GORM e PostgreSQL.
 Fluxo principal:
 
 1. A API conecta no PostgreSQL usando `DB_DSN`.
-2. As tabelas sao migradas automaticamente ao iniciar.
-3. Rotas publicas ficam em `/api/auth`.
+2. As tabelas são migradas automaticamente ao iniciar.
+3. Rotas públicas ficam em `/api/auth`.
 4. Rotas protegidas precisam de `Authorization: Bearer TOKEN`.
 5. A API pode salvar foto de perfil em storage local ou Oracle Object Storage.
 
-Principais variaveis:
+Principais variáveis:
 
 ```txt
 PORT=8080
@@ -27,7 +27,7 @@ GIN_MODE=release
 
 ## Como Subir Na VM Pela Primeira Vez
 
-Na sua maquina local, gere a imagem:
+Na sua máquina local, gere a imagem:
 
 ```bash
 docker build -t app-financeiro-api .
@@ -61,9 +61,9 @@ Esse primeiro `docker compose up -d` sobe a API e o banco.
 
 ## Como Atualizar Somente A API Na VM
 
-Use quando o banco ja existe e voce quer trocar apenas o back-end.
+Use quando o banco já existe e você quer trocar apenas o back-end.
 
-Na maquina local, gere um novo `.tar`:
+Na máquina local, gere um novo `.tar`:
 
 ```bash
 docker build -t app-financeiro-api .
@@ -80,7 +80,7 @@ sudo docker load -i app-financeiro-backend.tar
 sudo docker compose up -d --no-deps --force-recreate api
 ```
 
-Esse comando recria somente o container da API e nao mexe no banco.
+Esse comando recria somente o container da API e não mexe no banco.
 
 Conferir logs:
 
@@ -88,4 +88,4 @@ Conferir logs:
 sudo docker logs -f app_financeiro_api
 ```
 
-Importante: nao use `docker compose down -v`, porque o `-v` remove volumes e pode apagar os dados do banco.
+Importante: não use `docker compose down -v`, porque o `-v` remove volumes e pode apagar os dados do banco.
