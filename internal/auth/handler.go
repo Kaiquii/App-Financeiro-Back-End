@@ -116,7 +116,7 @@ func login(c *gin.Context) {
 		"user_id": user.ID,
 		"email":   user.Email,
 		"role":    user.Role,
-		"exp":     time.Now().Add(time.Hour * 72).Unix(),
+		"exp":     time.Now().Add(7 * 24 * time.Hour).Unix(),
 	})
 
 	secret := []byte(os.Getenv("JWT_SECRET"))
