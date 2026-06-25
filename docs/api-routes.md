@@ -49,6 +49,21 @@ Fixa
 
 No PATCH, o body pode usar `update_future: true` para atualizar despesas futuras da mesma série.
 
+As despesas aceitam o campo opcional `notes` para observações:
+
+```json
+{
+  "notes": "R$ 80 meu e R$ 80 da minha namorada."
+}
+```
+
+Regras:
+
+- `notes` é opcional.
+- Limite de 500 caracteres.
+- Enviar `notes` vazio limpa a observação.
+- Em despesas parceladas/fixas, `update_future: true` também atualiza as observações das futuras.
+
 ## Rendas
 
 1. `/api/incomes/` -> POST -> Cadastrar renda

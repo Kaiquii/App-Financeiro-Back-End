@@ -13,6 +13,7 @@ import (
 )
 
 const fixedExpenseHorizonMonths = 120
+const maxExpenseNotesLength = 500
 
 func normalizeExpenseType(expenseType string) string {
 	switch strings.TrimSpace(strings.ToLower(expenseType)) {
@@ -29,6 +30,11 @@ func normalizeExpenseType(expenseType string) string {
 
 func buildSeriesID(userID uint) string {
 	return fmt.Sprintf("expense-%d-%d", userID, time.Now().UnixNano())
+}
+
+func normalizeExpenseNotes(notes string) (string, bool) {
+	normalizedNotes := strings.TrimSpace(notes)
+	return normalizedNotes, len([]rune(normalizedNotes)) <= maxExpenseNotesLength
 }
 
 func RegisterRoutes(rg *gin.RouterGroup) {
@@ -60,6 +66,12 @@ func createExpense(c *gin.Context) {
 	var req CreateExpenseRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos: " + err.Error()})
+		return
+	}
+
+	notes, ok := normalizeExpenseNotes(req.Notes)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Observações devem ter no máximo 500 caracteres"})
 		return
 	}
 
@@ -99,6 +111,7 @@ func createExpense(c *gin.Context) {
 			SeriesID:       seriesID,
 			Amount:         req.Amount,
 			Description:    req.Description,
+			Notes:          notes,
 			CategoryID:     req.CategoryID,
 			PaymentSource:  req.PaymentSource,
 			Date:           installmentDate,
@@ -207,6 +220,25 @@ func updateExpense(c *gin.Context) {
 			updateFuture = boolVal
 		}
 		delete(updateData, "update_future")
+	}
+
+	if notesValue, exists := updateData["notes"]; exists {
+		if notesValue == nil {
+			updateData["notes"] = ""
+		} else {
+			notesText, ok := notesValue.(string)
+			if !ok {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Observações inválidas"})
+				return
+			}
+
+			notes, valid := normalizeExpenseNotes(notesText)
+			if !valid {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Observações devem ter no máximo 500 caracteres"})
+				return
+			}
+			updateData["notes"] = notes
+		}
 	}
 
 	if typeValue, exists := updateData["type"]; exists {

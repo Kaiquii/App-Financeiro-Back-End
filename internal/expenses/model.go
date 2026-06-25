@@ -9,6 +9,7 @@ type Expense struct {
 	CategoryID     uint      `json:"category_id"`
 	Amount         float64   `json:"amount"`
 	Description    string    `json:"description"`
+	Notes          string    `json:"notes" gorm:"type:text"`
 	PaymentSource  string    `json:"payment_source"`
 	Date           time.Time `json:"date"`
 	Month          int       `json:"month"`
@@ -21,6 +22,7 @@ type Expense struct {
 type CreateExpenseRequest struct {
 	Amount        float64   `json:"amount" binding:"required"`
 	Description   string    `json:"description" binding:"required"`
+	Notes         string    `json:"notes"`
 	CategoryID    uint      `json:"category_id"`
 	PaymentSource string    `json:"payment_source"`
 	Date          time.Time `json:"date" binding:"required"`
