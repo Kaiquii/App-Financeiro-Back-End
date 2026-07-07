@@ -25,10 +25,49 @@ Authorization: Bearer TOKEN
 1. `/api/admin/users/ID` -> DELETE -> Deletar usuário e todos os dados dele
 2. `/api/admin/users/ID/revoke-access` -> PATCH -> Revogar acesso de usuário
 3. `/api/admin/users/ID/restore-access` -> PATCH -> Liberar acesso de usuário bloqueado
+4. `/api/admin/app-version/android` -> POST -> Cadastrar uma nova versão do app Android no histórico
+5. `/api/admin/app-version/android/VERSION_CODE` -> PATCH -> Corrigir os dados de uma versão já cadastrada
+6. `/api/admin/app-version/android/history` -> GET -> Listar o histórico de versões cadastradas
 
 Observação:
 
 O delete admin remove despesas, rendas, categorias, conversas/mensagens do assistente, códigos de redefinição de senha e foto de perfil. Para apenas bloquear o uso do app sem apagar histórico, use `revoke-access`.
+
+## Versão Do App
+
+1. `/api/app-version?platform=android` -> GET -> Consultar a versão disponível do app Android
+
+Essa rota é pública para o Android conseguir consultar a versão mesmo antes do login. Ela sempre retorna a maior versão cadastrada para a plataforma.
+
+Resposta:
+
+```json
+{
+  "id": 1,
+  "platform": "android",
+  "latest_version_name": "1.0.2",
+  "latest_version_code": 102,
+  "min_required_version_code": 101,
+  "force_update": false,
+  "play_store_url": "https://play.google.com/store/apps/details?id=...",
+  "message": "Nova versão disponível com melhorias e correções.",
+  "created_at": "2026-07-07T12:00:00Z",
+  "updated_at": "2026-07-07T12:00:00Z"
+}
+```
+
+Regra para o Android:
+
+- Se `latest_version_code` for maior que o `versionCode` instalado, mostrar modal de atualização.
+- Se `force_update` for `true` ou o `versionCode` instalado for menor que `min_required_version_code`, tratar como atualização obrigatória.
+- O botão de atualizar deve abrir `play_store_url`.
+
+Regra de cadastro:
+
+- Use `POST /api/admin/app-version/android` para cadastrar uma nova versão publicada.
+- Use `PATCH /api/admin/app-version/android/VERSION_CODE` apenas para corrigir dados de uma versão que já existe.
+- O histórico é mantido na tabela `app_versions`.
+- O Android não precisa consultar o histórico; ele usa apenas o `GET /api/app-version?platform=android`.
 
 ## Despesas
 
