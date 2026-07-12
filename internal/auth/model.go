@@ -6,6 +6,7 @@ type RegisterRequest struct {
 	Name     string `json:"name" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=3"`
+	Code     string `json:"code" binding:"required,len=6"`
 }
 
 type LoginRequest struct {
@@ -28,10 +29,25 @@ type PasswordResetToken struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	UserID    uint      `gorm:"index" json:"user_id"`
 	Email     string    `gorm:"index" json:"email"`
+	IPAddress string    `gorm:"index" json:"ip_address"`
 	CodeHash  string    `json:"-"`
 	ExpiresAt time.Time `json:"expires_at"`
 	Used      bool      `json:"used"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type RegistrationCode struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Email     string    `gorm:"index" json:"email"`
+	CodeHash  string    `json:"-"`
+	IPAddress string    `gorm:"index" json:"ip_address"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Used      bool      `gorm:"default:false" json:"used"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type RequestRegisterCodeRequest struct {
+	Email string `json:"email" binding:"required,email"`
 }
 
 type ForgotPasswordRequest struct {

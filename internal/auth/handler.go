@@ -8,8 +8,11 @@ import (
 	"Sobra_Ai_Back-end/internal/incomes"
 	"Sobra_Ai_Back-end/internal/uploads"
 	"crypto/rand"
+	"errors"
 	"fmt"
+	"log"
 	"math/big"
+	"mime"
 	"net/http"
 	"net/smtp"
 	"os"
@@ -26,6 +29,7 @@ import (
 func RegisterRoutes(rg *gin.RouterGroup) {
 	authGroup := rg.Group("/auth")
 	{
+		authGroup.POST("/request-register-code", requestRegisterCode)
 		authGroup.POST("/register", register)
 		authGroup.POST("/login", login)
 		authGroup.POST("/forgot-password", forgotPassword)
@@ -47,6 +51,166 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 	}
 }
 
+const (
+	registrationCodeTTL          = 10 * time.Minute
+	registrationRateLimitWindow  = 30 * time.Minute
+	maxRegistrationCodesByEmail  = 3
+	maxRegistrationCodesByIP     = 5
+	passwordResetRateLimitWindow = 30 * time.Minute
+	maxPasswordResetsByEmail     = 3
+	maxPasswordResetsByIP        = 5
+)
+
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+func isBlockedRegistrationEmail(email string) bool {
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return true
+	}
+
+	domain := strings.ToLower(parts[1])
+	blockedDomains := map[string]bool{
+		"example.com":   true,
+		"example.org":   true,
+		"example.net":   true,
+		"test.com":      true,
+		"localhost.com": true,
+		"invalid.com":   true,
+	}
+
+	return blockedDomains[domain]
+}
+
+func exceededRegistrationCodeLimit(email string, ipAddress string) bool {
+	since := time.Now().Add(-registrationRateLimitWindow)
+
+	var emailCount int64
+	database.DB.Model(&RegistrationCode{}).
+		Where("email = ? AND created_at > ?", email, since).
+		Count(&emailCount)
+	if emailCount >= maxRegistrationCodesByEmail {
+		return true
+	}
+
+	var ipCount int64
+	database.DB.Model(&RegistrationCode{}).
+		Where("ip_address = ? AND created_at > ?", ipAddress, since).
+		Count(&ipCount)
+
+	return ipCount >= maxRegistrationCodesByIP
+}
+
+func exceededPasswordResetLimit(email string, ipAddress string) bool {
+	since := time.Now().Add(-passwordResetRateLimitWindow)
+
+	var emailCount int64
+	database.DB.Model(&PasswordResetToken{}).
+		Where("email = ? AND created_at > ?", email, since).
+		Count(&emailCount)
+	if emailCount >= maxPasswordResetsByEmail {
+		return true
+	}
+
+	var ipCount int64
+	database.DB.Model(&PasswordResetToken{}).
+		Where("ip_address = ? AND created_at > ?", ipAddress, since).
+		Count(&ipCount)
+
+	return ipCount >= maxPasswordResetsByIP
+}
+
+func requestRegisterCode(c *gin.Context) {
+	var req RequestRegisterCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados invalidos: " + err.Error()})
+		return
+	}
+
+	email := normalizeEmail(req.Email)
+	ipAddress := c.ClientIP()
+
+	if isBlockedRegistrationEmail(email) {
+		log.Printf("Cadastro bloqueado por dominio invalido email=%s ip=%s user_agent=%q", email, ipAddress, c.Request.UserAgent())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Use um e-mail valido"})
+		return
+	}
+
+	var existingUser User
+	if err := database.DB.Where("email = ?", email).First(&existingUser).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "Este e-mail ja esta cadastrado"})
+		return
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao verificar e-mail"})
+		return
+	}
+
+	if exceededRegistrationCodeLimit(email, ipAddress) {
+		log.Printf("Envio de codigo de cadastro limitado email=%s ip=%s user_agent=%q", email, ipAddress, c.Request.UserAgent())
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "Muitas tentativas de cadastro. Tente novamente mais tarde."})
+		return
+	}
+
+	code, err := generateResetCode()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao gerar codigo"})
+		return
+	}
+
+	codeHash, err := bcrypt.GenerateFromPassword([]byte(code), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar codigo"})
+		return
+	}
+
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao iniciar cadastro"})
+		return
+	}
+
+	if err := tx.Model(&RegistrationCode{}).
+		Where("email = ? AND used = false", email).
+		Update("used", true).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao invalidar codigos antigos"})
+		return
+	}
+
+	registrationCode := RegistrationCode{
+		Email:     email,
+		CodeHash:  string(codeHash),
+		IPAddress: ipAddress,
+		ExpiresAt: time.Now().Add(registrationCodeTTL),
+		Used:      false,
+	}
+
+	if err := tx.Create(&registrationCode).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar codigo"})
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao confirmar codigo"})
+		return
+	}
+
+	if err := sendRegistrationCodeEmail(email, code); err != nil {
+		log.Printf("Erro ao enviar codigo de cadastro email=%s ip=%s erro=%v", email, ipAddress, err)
+		if deleteErr := database.DB.Delete(&registrationCode).Error; deleteErr != nil {
+			log.Printf("Erro ao remover codigo de cadastro apos falha no envio email=%s ip=%s erro=%v", email, ipAddress, deleteErr)
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao enviar e-mail"})
+		return
+	}
+
+	log.Printf("Codigo de cadastro enviado email=%s ip=%s user_agent=%q", email, ipAddress, c.Request.UserAgent())
+	c.JSON(http.StatusOK, gin.H{"message": "Enviamos um codigo para confirmar seu e-mail."})
+}
+
 func register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -54,11 +218,33 @@ func register(c *gin.Context) {
 		return
 	}
 
-	req.Email = strings.ToLower(req.Email)
+	req.Name = strings.TrimSpace(req.Name)
+	req.Email = normalizeEmail(req.Email)
+	req.Code = strings.TrimSpace(req.Code)
+
+	if isBlockedRegistrationEmail(req.Email) {
+		log.Printf("Cadastro bloqueado por dominio invalido email=%s ip=%s user_agent=%q", req.Email, c.ClientIP(), c.Request.UserAgent())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Use um e-mail valido"})
+		return
+	}
 
 	var existingUser User
 	if err := database.DB.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "Este e-mail já está cadastrado"})
+		return
+	}
+
+	var registrationCode RegistrationCode
+	if err := database.DB.
+		Where("email = ? AND used = false AND expires_at > ?", req.Email, time.Now()).
+		Order("created_at desc").
+		First(&registrationCode).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Codigo invalido ou expirado"})
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(registrationCode.CodeHash), []byte(req.Code)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Codigo invalido ou expirado"})
 		return
 	}
 
@@ -75,11 +261,31 @@ func register(c *gin.Context) {
 		Role:     "user",
 	}
 
-	if err := database.DB.Create(&newUser).Error; err != nil {
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao iniciar cadastro"})
+		return
+	}
+
+	if err := tx.Create(&newUser).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar no banco de dados"})
 		return
 	}
 
+	registrationCode.Used = true
+	if err := tx.Save(&registrationCode).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao invalidar codigo"})
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao confirmar cadastro"})
+		return
+	}
+
+	log.Printf("Usuario criado por cadastro validado id=%d email=%s ip=%s user_agent=%q", newUser.ID, newUser.Email, c.ClientIP(), c.Request.UserAgent())
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Usuário " + req.Name + " criado com sucesso!",
 		"user_id": newUser.ID,
@@ -93,7 +299,7 @@ func login(c *gin.Context) {
 		return
 	}
 
-	req.Email = strings.ToLower(req.Email)
+	req.Email = normalizeEmail(req.Email)
 
 	var user User
 	if err := database.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
@@ -324,6 +530,14 @@ func generateResetCode() (string, error) {
 }
 
 func sendPasswordResetEmail(to string, name string, code string) error {
+	return sendAuthEmail(to, "Código para redefinir sua senha", passwordResetEmailHTML(name, code))
+}
+
+func sendRegistrationCodeEmail(to string, code string) error {
+	return sendAuthEmail(to, "Código para criar sua conta", registrationCodeEmailHTML(code))
+}
+
+func sendAuthEmail(to string, subject string, htmlBody string) error {
 	from := os.Getenv("SMTP_EMAIL")
 	password := os.Getenv("SMTP_PASSWORD")
 	host := os.Getenv("SMTP_HOST")
@@ -331,12 +545,9 @@ func sendPasswordResetEmail(to string, name string, code string) error {
 
 	auth := smtp.PlainAuth("", from, password, host)
 
-	subject := "Codigo para redefinir sua senha"
-	htmlBody := passwordResetEmailHTML(name, code)
-
 	message := []byte(
 		"To: " + to + "\r\n" +
-			"Subject: " + subject + "\r\n" +
+			"Subject: " + mime.QEncoding.Encode("UTF-8", subject) + "\r\n" +
 			"MIME-Version: 1.0\r\n" +
 			"Content-Type: text/html; charset=\"UTF-8\"\r\n" +
 			"\r\n" +
@@ -353,11 +564,18 @@ func forgotPassword(c *gin.Context) {
 		return
 	}
 
-	req.Email = strings.ToLower(req.Email)
+	req.Email = normalizeEmail(req.Email)
+	ipAddress := c.ClientIP()
 
 	var user User
 	if err := database.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "Se o e-mail existir, um codigo sera enviado."})
+		return
+	}
+
+	if exceededPasswordResetLimit(user.Email, ipAddress) {
+		log.Printf("Envio de codigo de redefinicao limitado email=%s ip=%s user_agent=%q", user.Email, ipAddress, c.Request.UserAgent())
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "Muitas tentativas. Tente novamente mais tarde."})
 		return
 	}
 
@@ -376,21 +594,47 @@ func forgotPassword(c *gin.Context) {
 	resetToken := PasswordResetToken{
 		UserID:    user.ID,
 		Email:     user.Email,
+		IPAddress: ipAddress,
 		CodeHash:  string(codeHash),
 		ExpiresAt: time.Now().Add(10 * time.Minute),
 		Used:      false,
 	}
 
-	if err := database.DB.Create(&resetToken).Error; err != nil {
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao iniciar redefinicao de senha"})
+		return
+	}
+
+	if err := tx.Model(&PasswordResetToken{}).
+		Where("email = ? AND used = false", user.Email).
+		Update("used", true).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao invalidar codigos antigos"})
+		return
+	}
+
+	if err := tx.Create(&resetToken).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar codigo"})
 		return
 	}
 
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao confirmar codigo"})
+		return
+	}
+
 	if err := sendPasswordResetEmail(user.Email, user.Name, code); err != nil {
+		log.Printf("Erro ao enviar codigo de redefinicao de senha email=%s ip=%s erro=%v", user.Email, ipAddress, err)
+		if deleteErr := database.DB.Delete(&resetToken).Error; deleteErr != nil {
+			log.Printf("Erro ao remover codigo de redefinicao apos falha no envio email=%s ip=%s erro=%v", user.Email, ipAddress, deleteErr)
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao enviar e-mail"})
 		return
 	}
 
+	log.Printf("Codigo de redefinicao enviado email=%s ip=%s user_agent=%q", user.Email, ipAddress, c.Request.UserAgent())
 	c.JSON(http.StatusOK, gin.H{"message": "Se o e-mail existir, um codigo sera enviado."})
 }
 

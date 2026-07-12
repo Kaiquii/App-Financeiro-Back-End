@@ -25,7 +25,7 @@ func main() {
 
 	database.Connect()
 
-	err := database.DB.AutoMigrate(&auth.User{}, &auth.PasswordResetToken{}, &expenses.Expense{}, &incomes.Income{}, &categories.Category{}, &assistant.Conversation{}, &assistant.Message{})
+	err := database.DB.AutoMigrate(&auth.User{}, &auth.PasswordResetToken{}, &auth.RegistrationCode{}, &expenses.Expense{}, &incomes.Income{}, &categories.Category{}, &assistant.Conversation{}, &assistant.Message{})
 	if err != nil {
 		log.Fatalf("Erro ao rodar migrações: %v", err)
 	}
