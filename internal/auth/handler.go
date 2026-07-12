@@ -300,18 +300,29 @@ func login(c *gin.Context) {
 	}
 
 	req.Email = normalizeEmail(req.Email)
+	ipAddress := c.ClientIP()
+
+	if loginAttempts.isBlocked(req.Email, ipAddress, time.Now()) {
+		log.Printf("Login limitado email=%s ip=%s user_agent=%q", req.Email, ipAddress, c.Request.UserAgent())
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "Muitas tentativas de login. Tente novamente em alguns minutos."})
+		return
+	}
 
 	var user User
 	if err := database.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
+		loginAttempts.recordFailure(req.Email, ipAddress, time.Now())
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "E-mail ou senha incorretos"})
 		return
 	}
 
 	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
 	if err != nil {
+		loginAttempts.recordFailure(req.Email, ipAddress, time.Now())
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "E-mail ou senha incorretos"})
 		return
 	}
+
+	loginAttempts.clear(req.Email, ipAddress)
 
 	if user.AccessBlocked {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Acesso revogado. Entre em contato com o suporte."})
