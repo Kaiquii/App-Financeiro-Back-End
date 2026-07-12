@@ -1,6 +1,7 @@
 package main
 
 import (
+	"Sobra_Ai_Back-end/internal/appversion"
 	"Sobra_Ai_Back-end/internal/assistant"
 	"Sobra_Ai_Back-end/internal/auth"
 	"Sobra_Ai_Back-end/internal/categories"
@@ -24,8 +25,9 @@ func main() {
 	}
 
 	database.Connect()
+	appversion.PrepareSchema(database.DB)
 
-	err := database.DB.AutoMigrate(&auth.User{}, &auth.PasswordResetToken{}, &auth.RegistrationCode{}, &expenses.Expense{}, &incomes.Income{}, &categories.Category{}, &assistant.Conversation{}, &assistant.Message{})
+	err := database.DB.AutoMigrate(&auth.User{}, &auth.PasswordResetToken{}, &auth.RegistrationCode{}, &expenses.Expense{}, &incomes.Income{}, &categories.Category{}, &assistant.Conversation{}, &assistant.Message{}, &appversion.AppVersion{})
 	if err != nil {
 		log.Fatalf("Erro ao rodar migrações: %v", err)
 	}
@@ -44,6 +46,7 @@ func main() {
 	api := router.Group("/api")
 	{
 		auth.RegisterRoutes(api)
+		appversion.RegisterRoutes(api)
 
 		protected := api.Group("/")
 		protected.Use(auth.AuthMiddleware())
