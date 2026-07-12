@@ -139,16 +139,22 @@ Exporta todas as despesas do mês.
 Colunas sugeridas:
 
 ```csv
-Data,Descricao,Categoria,Fonte de Pagamento,Tipo,Parcela,Valor
-2026-06-01,Mercado,Alimentacao,Salario,Unica,,120.50
-2026-06-05,Notebook,Eletronicos,Salario,Parcelada,2/10,300.00
-2026-06-10,Internet,Casa,Adiantamento,Fixa,,99.90
+Data,Descricao,Observacoes,Categoria,Fonte de Pagamento,Tipo,Parcela,Valor
+2026-06-01,Mercado,,Alimentacao,Salario,Unica,,120.50
+2026-06-05,Notebook,"Compra parcelada no cartao",Eletronicos,Salario,Parcelada,2/10,300.00
+2026-06-24,Barzinho,"R$ 80 meu e R$ 80 da minha namorada.",Lazer,Salario,Unica,,160.00
 ```
 
 Regra da coluna `Parcela`:
 
 - Se for parcelada, exibir `parcela_atual/total_parcelas`.
 - Se não for parcelada, deixar vazio.
+
+Regra da coluna `Observacoes`:
+
+- Deve usar o campo `notes` da despesa.
+- Se a despesa não tiver observação, deixar vazio.
+- Como pode ter vírgula ou quebra de linha, o CSV deve escapar o campo corretamente.
 
 ## 2. Receitas
 
@@ -281,16 +287,19 @@ No futuro, pode incluir:
 Colunas sugeridas:
 
 ```csv
-Secao,Campo1,Campo2,Campo3,Campo4,Campo5,Campo6
-Resumo,Receitas,3500.00,,,,,
-Resumo,Despesas,2400.00,,,,,
-Resumo,Saldo,1100.00,,,,,
-Receita,Salario,3000.00,6,2026,,,
-Receita,Renda Extra,500.00,6,2026,,,
-Despesa,Mercado,Alimentacao,Salario,Unica,120.50,2026-06-01
-Despesa,Notebook,Eletronicos,Salario,Parcelada,300.00,2026-06-05
-Categoria,Alimentacao,620.00,25.83,,,,
+Secao,Campo1,Campo2,Campo3,Campo4,Campo5,Campo6,Campo7
+Resumo,Receitas,3500.00,,,,,,
+Resumo,Despesas,2400.00,,,,,,
+Resumo,Saldo,1100.00,,,,,,
+Receita,Salario,3000.00,6,2026,,,,
+Receita,Renda Extra,500.00,6,2026,,,,
+Despesa,Mercado,Alimentacao,Salario,Unica,120.50,2026-06-01,
+Despesa,Barzinho,Lazer,Salario,Unica,160.00,2026-06-24,"R$ 80 meu e R$ 80 da minha namorada."
+Despesa,Notebook,Eletronicos,Salario,Parcelada,300.00,2026-06-05,"Compra parcelada no cartao"
+Categoria,Alimentacao,620.00,25.83,,,,,
 ```
+
+Na seção `Despesa` do `full_report`, o último campo deve conter as observações da despesa (`notes`).
 
 ## Validações
 

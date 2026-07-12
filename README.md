@@ -2,8 +2,6 @@
 
 Back-end em Go do app SobraAí, responsável por autenticação, usuários, despesas, rendas, categorias, relatórios, assistente IA e foto de perfil.
 
-[Ver rotas da API](docs/api-routes.md)
-
 ## Resumo Do Projeto
 
 O projeto roda uma API HTTP em Go usando Gin, GORM e PostgreSQL.
