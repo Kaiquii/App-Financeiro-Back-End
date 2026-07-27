@@ -86,6 +86,27 @@ Na validacao, o backend deve conferir:
 
 O `sitekey` pode ficar no front-end. A chave secreta do Turnstile fica somente no backend, em segredo de deploy ou variavel de ambiente.
 
+## Experiencia do usuario
+
+A protecao anti-bot nao deve adicionar campos de token, seletores de provedor ou configuracoes tecnicas nas telas. Para o usuario, o fluxo deve permanecer:
+
+1. Informar o e-mail.
+2. Clicar em `Enviar codigo`.
+3. Informar somente o codigo recebido por e-mail.
+
+Todos os passos de seguranca acontecem nos bastidores:
+
+- o navegador obtem automaticamente o token do Turnstile;
+- o aplicativo Android obtem automaticamente o token do Play Integrity;
+- o cliente envia o token junto com o e-mail na requisicao;
+- o backend valida o token antes de gerar e enviar o codigo.
+
+Os campos `protection_provider`, `turnstile_token` e `play_integrity_token` descritos neste documento pertencem ao contrato tecnico da API. Eles nunca devem ser exibidos como campos preenchiveis na interface.
+
+No web, o Turnstile deve usar o modo `Managed`. Normalmente a verificacao sera invisivel, mas a Cloudflare podera apresentar uma confirmacao adicional quando considerar o acesso suspeito. No Android, o Play Integrity deve funcionar sem adicionar desafios ou campos a tela.
+
+Enquanto o token e obtido e a solicitacao e processada, o botao deve indicar carregamento e impedir envios duplicados. Se a verificacao falhar por indisponibilidade temporaria, a interface deve apresentar uma mensagem simples e permitir uma nova tentativa, sem expor detalhes tecnicos.
+
 ## Custos e cotas dos servicos
 
 Para implementar somente a protecao proposta neste documento, nao ha previsao de custo recorrente direto dentro das cotas atuais dos servicos.
@@ -182,6 +203,7 @@ Esta melhoria esta concluida quando:
 
 - Android envia e backend valida o token do Play Integrity nos dois endpoints de envio de codigo;
 - web envia e backend valida o token do Turnstile nos dois endpoints de envio de codigo;
+- o usuario continua preenchendo somente o e-mail e o codigo recebido, sem visualizar ou informar tokens de seguranca;
 - o backend recusa pedidos sem prova valida em producao;
 - segredos do Google e da Cloudflare nao estao versionados;
 - os limites de envio existentes continuam ativos;
