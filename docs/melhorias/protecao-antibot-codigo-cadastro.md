@@ -86,6 +86,33 @@ Na validacao, o backend deve conferir:
 
 O `sitekey` pode ficar no front-end. A chave secreta do Turnstile fica somente no backend, em segredo de deploy ou variavel de ambiente.
 
+## Custos e cotas dos servicos
+
+Para implementar somente a protecao proposta neste documento, nao ha previsao de custo recorrente direto dentro das cotas atuais dos servicos.
+
+| Componente | Custo previsto | Cota ou limite relevante | Observacao |
+| --- | --- | --- | --- |
+| Cloudflare Turnstile | Gratuito no plano Free | desafios e verificacoes ilimitados; ate 20 widgets; ate 10 hostnames por widget | O limite de 20 e de configuracoes de widget, nao de usuarios, acessos simultaneos ou desafios. O projeto provavelmente precisara de poucos widgets. |
+| Google Play Integrity API | A documentacao oficial nao indica cobranca por requisicao no uso padrao | ate 10.000 requisicoes por dia por aplicativo, por padrao | Se o aplicativo se aproximar da cota, e possivel solicitar aumento ao Google, sujeito aos requisitos e a aprovacao. |
+| Validacao no backend | Sem novo fornecedor pago | consome apenas os recursos normais da API e da rede | Existe custo de desenvolvimento, manutencao, logs e monitoramento, mas nao uma assinatura adicional. |
+| SMTP atual do Gmail | Sem nova cobranca causada pelo anti-bot | continua sujeito aos limites de envio e as regras de reputacao do Gmail | A protecao reduz disparos abusivos, mas nao transforma o Gmail em um servico transacional com controle de bounces. |
+| Provedor de e-mail transacional | Opcional e potencialmente pago | depende do fornecedor e do volume enviado | Pode ser adotado depois para obter bounces, supressao automatica, logs de entrega e melhor controle de reputacao. |
+| Servico externo de verificacao de e-mail | Opcional e normalmente cobrado por consulta | depende do fornecedor | Nao e necessario para a primeira entrega e nao garante com 100% de certeza que uma caixa postal existe ou recebera a mensagem. |
+
+Na pratica, para o cenario atual do SobraAi:
+
+- o Turnstile pode atender qualquer quantidade de usuarios e desafios no plano Free, respeitando os limites de widgets e hostnames;
+- o limite de 20 widgets nao significa 20 pessoas, 20 desafios ou 20 acessos simultaneos;
+- o Play Integrity deve ser chamado apenas quando o Android solicitar o envio de um codigo, preservando a cota diaria;
+- a cota padrao de 10.000 requisicoes por dia deve ser monitorada, mas ultrapassar a cota nao gera automaticamente uma cobranca: novas verificacoes podem ser limitadas ate que exista cota disponivel ou um aumento seja aprovado;
+- nenhum verificador pago de e-mail deve ser contratado como dependencia desta primeira fase;
+- migrar do Gmail para um provedor transacional e uma melhoria separada, com custo avaliado conforme o volume real de e-mails.
+
+Essas condicoes podem mudar pelos fornecedores. Antes da implantacao em producao e durante revisoes periodicas, devem ser consultadas as fontes oficiais:
+
+- [Planos do Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/plans/)
+- [Cotas do Google Play Integrity](https://support.google.com/googleplay/android-developer/answer/11395166?hl=pt)
+
 ## Contrato dos endpoints
 
 Os dois endpoints continuam separados, mas passam a receber a prova do cliente. Exemplo para Android:
@@ -159,4 +186,6 @@ Esta melhoria esta concluida quando:
 - segredos do Google e da Cloudflare nao estao versionados;
 - os limites de envio existentes continuam ativos;
 - ha testes cobrindo aprovacao e bloqueio para os dois canais;
-- ha monitoramento de bloqueios, falhas de validacao e falhas de entrega de e-mail.
+- ha monitoramento de bloqueios, falhas de validacao e falhas de entrega de e-mail;
+- ha monitoramento do consumo da cota diaria do Play Integrity;
+- os custos de qualquer provedor de e-mail ou verificador externo opcional foram aprovados antes da contratacao.
