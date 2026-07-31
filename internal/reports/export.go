@@ -338,7 +338,7 @@ func generateExportCSV(dataset exportDataset) ([]byte, error) {
 }
 
 func writeExpensesCSV(writer *csv.Writer, items []expenses.Expense, categoryNames map[uint]string) error {
-	if err := writer.Write([]string{"Data", "Descricao", "Observacoes", "Categoria", "Fonte de Pagamento", "Tipo", "Parcela", "Valor"}); err != nil {
+	if err := writer.Write([]string{"Data", "Descricao", "Categoria", "Fonte de Pagamento", "Tipo", "Parcela", "Valor", "Observacoes"}); err != nil {
 		return err
 	}
 	for _, expense := range items {
@@ -350,7 +350,7 @@ func writeExpensesCSV(writer *csv.Writer, items []expenses.Expense, categoryName
 		if category == "" {
 			category = "Sem categoria"
 		}
-		if err := writer.Write([]string{expense.Date.Format("2006-01-02"), safeCSVText(expense.Description), safeCSVText(expense.Notes), safeCSVText(category), safeCSVText(paymentSourceLabel(expense.PaymentSource)), safeCSVText(expenseTypeLabel(expense.Type)), installment, formatDecimal(expense.Amount)}); err != nil {
+		if err := writer.Write([]string{expense.Date.Format("2006-01-02"), safeCSVText(expense.Description), safeCSVText(category), safeCSVText(paymentSourceLabel(expense.PaymentSource)), safeCSVText(expenseTypeLabel(expense.Type)), installment, formatDecimal(expense.Amount), safeCSVText(expense.Notes)}); err != nil {
 			return err
 		}
 	}
