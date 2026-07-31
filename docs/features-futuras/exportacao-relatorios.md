@@ -38,6 +38,21 @@ A implementação pode ser organizada em etapas técnicas, mas os quatro primeir
 
 O formato inicial continuará sendo apenas CSV. PDF ou outros formatos são melhorias futuras e não fazem parte deste planejamento.
 
+Para abrir corretamente em instalações brasileiras do Microsoft Excel, o CSV deve usar:
+
+- ponto e vírgula (`;`) como separador de colunas;
+- vírgula como separador decimal;
+- codificação UTF-8 com BOM.
+
+Exemplo:
+
+```csv
+Data;Descricao;Categoria;Valor
+2026-06-18;Restaurante;Alimentacao;120,00
+```
+
+Os exemplos de estrutura apresentados abaixo devem ser interpretados seguindo esse padrão regional na implementação.
+
 ## Autenticação
 
 A rota será protegida e deverá usar o token do usuário logado:

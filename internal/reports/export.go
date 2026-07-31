@@ -305,6 +305,7 @@ func generateExportCSV(dataset exportDataset) ([]byte, error) {
 	buffer := &bytes.Buffer{}
 	buffer.Write([]byte{0xEF, 0xBB, 0xBF})
 	writer := csv.NewWriter(buffer)
+	writer.Comma = ';'
 
 	var err error
 	switch dataset.Options.ReportType {
@@ -552,7 +553,8 @@ func writePaddedRow(writer *csv.Writer, row []string, width int) error {
 }
 
 func formatDecimal(value float64) string {
-	return strconv.FormatFloat(roundMoney(value), 'f', 2, 64)
+	formatted := strconv.FormatFloat(roundMoney(value), 'f', 2, 64)
+	return strings.Replace(formatted, ".", ",", 1)
 }
 
 func safeCSVText(value string) string {

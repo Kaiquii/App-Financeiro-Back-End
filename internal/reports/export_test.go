@@ -88,7 +88,7 @@ func TestGenerateExpensesCSVPreservesSpecialCharacters(t *testing.T) {
 	if records[1][1] != "Mercado, centro" || records[1][2] != "Linha 1\n\"Linha 2\"" {
 		t.Fatalf("special characters were not preserved: %#v", records[1])
 	}
-	if records[1][7] != "120.50" {
+	if records[1][7] != "120,50" {
 		t.Fatalf("expected monetary value with two decimals, got %q", records[1][7])
 	}
 }
@@ -190,7 +190,9 @@ func completeExportTestDataset() exportDataset {
 func readCSVRecords(t *testing.T, content []byte) [][]string {
 	t.Helper()
 	text := strings.TrimPrefix(string(content), "\xEF\xBB\xBF")
-	records, err := csv.NewReader(strings.NewReader(text)).ReadAll()
+	reader := csv.NewReader(strings.NewReader(text))
+	reader.Comma = ';'
+	records, err := reader.ReadAll()
 	if err != nil {
 		t.Fatalf("invalid CSV: %v", err)
 	}
