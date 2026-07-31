@@ -1,6 +1,8 @@
-# Planejamento - Exportação De Relatórios
+# Exportação De Relatórios
 
-Este documento descreve a funcionalidade completa planejada para exportar relatórios financeiros em CSV.
+Este documento registra o que já foi implementado na exportação de relatórios e planeja a evolução para XLSX e PDF.
+
+Guia prático de uso e teste: [`docs/guia-exportacao-relatorios.md`](../guia-exportacao-relatorios.md).
 
 A ideia é permitir que o usuário baixe os dados financeiros dele em arquivo, para abrir no Excel, Google Sheets, LibreOffice ou guardar como histórico.
 
@@ -12,19 +14,24 @@ Criar um endpoint único para exportação:
 GET /api/reports/export
 ```
 
-O endpoint deve retornar um arquivo CSV, não JSON.
+O endpoint retorna um arquivo para download, não JSON.
 
-Formato inicial:
+Formato disponível atualmente:
 
 ```txt
 csv
 ```
 
-Não haverá PDF no primeiro momento.
+Formatos planejados:
 
-## Escopo Da Entrega Planejada
+```txt
+xlsx
+pdf
+```
 
-A funcionalidade será considerada completa quando o endpoint oferecer todos os sete tipos de exportação descritos neste documento:
+## Estado Atual Da Implementação
+
+O backend já oferece os sete tipos de exportação em CSV:
 
 - despesas;
 - receitas;
@@ -34,9 +41,9 @@ A funcionalidade será considerada completa quando o endpoint oferecer todos os 
 - compromissos parcelados;
 - relatório completo.
 
-A implementação pode ser organizada em etapas técnicas, mas os quatro primeiros tipos não representam o escopo final da funcionalidade. A entrega planejada inclui também `month_comparison`, `installment_commitments` e `full_report`.
+A implementação CSV inclui `month_comparison`, `installment_commitments` e `full_report`, além dos quatro relatórios básicos.
 
-O formato inicial continuará sendo apenas CSV. PDF ou outros formatos são melhorias futuras e não fazem parte deste planejamento.
+XLSX e PDF serão adicionados como novos formatos no mesmo endpoint, sem remover ou alterar a disponibilidade do CSV.
 
 Para abrir corretamente em instalações brasileiras do Microsoft Excel, o CSV deve usar:
 
@@ -104,10 +111,17 @@ format
 
 Formato do arquivo.
 
-Valor aceito na primeira versão:
+Valor aceito atualmente:
 
 ```txt
 csv
+```
+
+Valores planejados:
+
+```txt
+xlsx
+pdf
 ```
 
 O `format` pode ser opcional com padrão `csv`, mas a recomendação é o front enviar explicitamente.
@@ -140,11 +154,23 @@ No `full_report`, quando os parâmetros opcionais não forem enviados, o compara
 
 ## Resposta Da API
 
-A API deve retornar arquivo CSV com os headers:
+A resposta atual para CSV usa os headers:
 
 ```http
 Content-Type: text/csv; charset=utf-8
 Content-Disposition: attachment; filename="relatorio-despesas-2026-06.csv"
+```
+
+As respostas planejadas usarão:
+
+```http
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Content-Disposition: attachment; filename="relatorio-despesas-2026-06.xlsx"
+```
+
+```http
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="relatorio-despesas-2026-06.pdf"
 ```
 
 O nome do arquivo deve variar conforme o tipo:
@@ -374,11 +400,12 @@ Erros devem seguir o padrão atual:
 }
 ```
 
-Validações sugeridas:
+Validações:
 
 - `type` é obrigatório.
 - `type` deve ser um dos tipos aceitos.
-- `format` deve ser `csv`.
+- atualmente, `format` deve ser `csv`;
+- após as próximas etapas, `format` aceitará `csv`, `xlsx` e `pdf`;
 - `month` deve estar entre 1 e 12.
 - `year` deve ser maior ou igual a 2000.
 - `compare_month` e `compare_year` devem ser enviados juntos.
@@ -398,6 +425,8 @@ Exemplos de erro:
 }
 ```
 
+Quando XLSX e PDF estiverem implementados, a mensagem deverá listar os três formatos aceitos.
+
 ```json
 {
   "error": "Mes e ano sao obrigatorios"
@@ -406,12 +435,12 @@ Exemplos de erro:
 
 ## Comportamento Sem Dados
 
-Se não houver dados para o período, a API ainda deve retornar um CSV válido com cabeçalho.
+Se não houver dados para o período, a API ainda deve retornar um arquivo válido para o formato solicitado. No CSV, o arquivo deve conter o cabeçalho.
 
 Exemplo:
 
 ```csv
-Data,Descricao,Categoria,Fonte de Pagamento,Tipo,Parcela,Valor
+Data;Descricao;Categoria;Fonte de Pagamento;Tipo;Parcela;Valor;Observacoes
 ```
 
 Isso evita erro no front e deixa claro que a exportação funcionou, mas não havia dados.
@@ -424,8 +453,9 @@ Fluxo sugerido:
 2. Clica em `Exportar`.
 3. Escolhe tipo de relatório.
 4. Escolhe mês e ano.
-5. O front chama `/api/reports/export`.
-6. O navegador baixa o arquivo CSV.
+5. Escolhe o formato disponível.
+6. O front chama `/api/reports/export`.
+7. O navegador baixa o arquivo.
 
 ## Android
 
@@ -435,31 +465,138 @@ Fluxo sugerido:
 2. Clica em `Exportar`.
 3. Escolhe tipo de relatório.
 4. Escolhe mês e ano.
-5. O app chama `/api/reports/export`.
-6. O app salva o arquivo ou abre a tela de compartilhamento.
+5. Escolhe o formato disponível.
+6. O app chama `/api/reports/export`.
+7. O app salva o arquivo ou abre a tela de compartilhamento.
 
-## Decisões Finais
+## Decisões Atuais
 
 - Um único endpoint: `/api/reports/export`.
-- Formato inicial: `csv`.
+- CSV permanece como formato padrão quando `format` não for enviado.
+- XLSX e PDF serão selecionados pelo mesmo parâmetro `format`.
 - Não usar API externa.
-- Não gerar PDF na primeira versão.
 - Resposta será arquivo, não JSON.
 - O arquivo deve ser gerado com dados do usuário autenticado.
-- A entrega planejada deve implementar os sete tipos de exportação documentados.
-- `full_report` deve consolidar resumo, receitas, despesas, categorias, comparativo mensal e compromissos parcelados em um único CSV.
-- Implementar os tipos em etapas é permitido, mas a funcionalidade não será considerada completa enquanto algum dos sete tipos estiver ausente.
+- Os sete tipos de relatório devem estar disponíveis em cada formato implementado.
+- Cada formato deve reaproveitar as mesmas consultas e regras financeiras, evitando diferenças nos valores exportados.
 
-## Critério De Pronto
+## O Que Já Foi Implementado Em CSV
 
-A exportação de relatórios estará concluída quando:
+- endpoint protegido `GET /api/reports/export`;
+- sete valores aceitos em `type`;
+- filtro por mês, ano e usuário autenticado;
+- comparativo automático com o mês anterior ou período personalizado;
+- configuração da linha do tempo de compromissos parcelados;
+- nome de arquivo e headers HTTP para download;
+- UTF-8 com BOM;
+- ponto e vírgula como separador de colunas;
+- vírgula como separador decimal;
+- observações na última coluna das despesas;
+- parcelas apresentadas como `3 de 5`, evitando conversão automática em data pelo Excel;
+- escape de vírgulas, aspas e quebras de linha;
+- neutralização de campos textuais que poderiam ser interpretados como fórmulas;
+- arquivos sem dados com cabeçalho válido;
+- `full_report` dividido em blocos com títulos e cabeçalhos próprios;
+- testes automatizados dos sete tipos, validações, caracteres especiais, arquivos vazios e autenticação.
 
-- os sete valores aceitos em `type` estiverem implementados;
-- cada exportação respeitar o mês, o ano e o usuário autenticado;
-- `full_report` reunir todas as seções definidas neste documento;
-- arquivos sem dados continuarem válidos e com cabeçalho;
-- campos com vírgulas, aspas e quebras de linha forem escapados corretamente;
-- campos textuais iniciados por caracteres interpretados como fórmula por planilhas forem neutralizados;
-- nomes de arquivo e headers HTTP estiverem corretos;
-- houver testes para todos os tipos, validações, ausência de dados e isolamento entre usuários;
-- o download funcionar no front-end web e o salvamento ou compartilhamento funcionar no Android.
+Itens ainda externos ao backend CSV:
+
+- integrar seleção e download no front-end web;
+- integrar salvamento e compartilhamento no Android;
+- validar a experiência final em produção com usuários autenticados.
+
+## Planejamento - XLSX
+
+### Objetivo
+
+Adicionar `format=xlsx` para gerar uma planilha nativa do Excel. Esse será o formato recomendado para análise detalhada e para o `full_report`.
+
+Exemplo:
+
+```http
+GET /api/reports/export?type=full_report&month=7&year=2026&format=xlsx
+```
+
+### Organização Do Relatório Completo
+
+O `full_report` em XLSX deve separar o conteúdo em abas reais:
+
+- `Resumo`;
+- `Receitas`;
+- `Despesas`;
+- `Categorias`;
+- `Comparativo`;
+- `Parcelamentos`;
+- `Insights`.
+
+### Formatação Planejada
+
+- títulos e cabeçalhos destacados;
+- valores numéricos armazenados como números e formatados como moeda;
+- percentuais armazenados como números e formatados como percentual;
+- datas armazenadas como datas;
+- largura de colunas adequada ao conteúdo, com limite para textos longos;
+- quebra de linha nas observações;
+- cabeçalho congelado nas tabelas extensas;
+- filtros nas abas de receitas e despesas;
+- saldo positivo e negativo com estilos visuais distintos;
+- nomes de abas e colunas em português;
+- compatibilidade com Microsoft Excel, Google Sheets e LibreOffice.
+
+### Critério De Pronto Do XLSX
+
+- `format=xlsx` funcionar para os sete tipos de relatório;
+- `full_report` possuir todas as abas planejadas;
+- valores do XLSX serem iguais aos valores do CSV para os mesmos parâmetros;
+- arquivo abrir sem aviso de corrupção;
+- filtros, datas, moedas e percentuais funcionarem como tipos nativos;
+- arquivos sem dados continuarem válidos, com aba e cabeçalho;
+- testes cobrirem conteúdo, nomes das abas, formatos e isolamento por usuário;
+- download funcionar no web e salvamento ou compartilhamento funcionar no Android.
+
+## Planejamento - PDF
+
+### Objetivo
+
+Adicionar `format=pdf` para gerar relatórios voltados à leitura, apresentação, impressão e compartilhamento. PDF não substitui CSV ou XLSX para análise dos dados.
+
+Exemplo:
+
+```http
+GET /api/reports/export?type=summary&month=7&year=2026&format=pdf
+```
+
+### Organização Planejada
+
+- título do relatório;
+- nome do período exportado;
+- data de geração;
+- resumo financeiro em destaque;
+- tabelas com cabeçalhos legíveis;
+- seções separadas no relatório completo;
+- quebra automática de páginas;
+- repetição do cabeçalho das tabelas em novas páginas;
+- orientação paisagem para tabelas largas;
+- observações longas com quebra de linha;
+- rodapé com número da página;
+- suporte completo a acentos e caracteres em português.
+
+### Critério De Pronto Do PDF
+
+- `format=pdf` funcionar para os sete tipos de relatório;
+- valores do PDF serem iguais aos valores do CSV e XLSX para os mesmos parâmetros;
+- conteúdo não ultrapassar margens nem ficar cortado;
+- tabelas extensas continuarem corretamente em novas páginas;
+- arquivos sem dados apresentarem uma mensagem clara;
+- relatório completo manter todas as seções identificadas;
+- testes verificarem geração, páginas e conteúdo essencial;
+- arquivo abrir nos leitores de PDF do navegador e Android.
+
+## Ordem Planejada De Implementação
+
+1. Manter e integrar a exportação CSV já implementada.
+2. Implementar XLSX com abas e formatação nativa.
+3. Integrar XLSX no web e Android.
+4. Implementar PDF começando pelo resumo e relatórios menores.
+5. Implementar o relatório completo em PDF com paginação.
+6. Integrar PDF no web e Android.
