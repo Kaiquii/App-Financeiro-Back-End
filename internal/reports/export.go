@@ -344,7 +344,7 @@ func writeExpensesCSV(writer *csv.Writer, items []expenses.Expense, categoryName
 	for _, expense := range items {
 		installment := ""
 		if expenseTypeLabel(expense.Type) == "Parcelada" {
-			installment = fmt.Sprintf("%d/%d", expense.CurrentInstall, expense.Installments)
+			installment = formatInstallment(expense.CurrentInstall, expense.Installments)
 		}
 		category := strings.TrimSpace(categoryNames[expense.CategoryID])
 		if category == "" {
@@ -515,7 +515,7 @@ func writeFullReportCSV(writer *csv.Writer, dataset exportDataset) error {
 		}
 		installment := ""
 		if expenseTypeLabel(expense.Type) == "Parcelada" {
-			installment = fmt.Sprintf("%d/%d", expense.CurrentInstall, expense.Installments)
+			installment = formatInstallment(expense.CurrentInstall, expense.Installments)
 		}
 		row := []string{"Despesa", safeCSVText(expense.Description), safeCSVText(category), safeCSVText(paymentSourceLabel(expense.PaymentSource)), safeCSVText(expenseTypeLabel(expense.Type)), formatDecimal(expense.Amount), expense.Date.Format("2006-01-02"), installment, safeCSVText(expense.Notes)}
 		if err := writePaddedRow(writer, row, 9); err != nil {
@@ -555,6 +555,10 @@ func writePaddedRow(writer *csv.Writer, row []string, width int) error {
 func formatDecimal(value float64) string {
 	formatted := strconv.FormatFloat(roundMoney(value), 'f', 2, 64)
 	return strings.Replace(formatted, ".", ",", 1)
+}
+
+func formatInstallment(current int, total int) string {
+	return fmt.Sprintf("%d de %d", current, total)
 }
 
 func safeCSVText(value string) string {

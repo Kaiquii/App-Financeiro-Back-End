@@ -172,16 +172,18 @@ Exporta todas as despesas do mês.
 Colunas sugeridas:
 
 ```csv
-Data,Descricao,Observacoes,Categoria,Fonte de Pagamento,Tipo,Parcela,Valor
-2026-06-01,Mercado,,Alimentacao,Salario,Unica,,120.50
-2026-06-05,Notebook,"Compra parcelada no cartao",Eletronicos,Salario,Parcelada,2/10,300.00
-2026-06-24,Barzinho,"R$ 80 meu e R$ 80 da minha namorada.",Lazer,Salario,Unica,,160.00
+Data;Descricao;Observacoes;Categoria;Fonte de Pagamento;Tipo;Parcela;Valor
+2026-06-01;Mercado;;Alimentacao;Salario;Unica;;120,50
+2026-06-05;Notebook;Compra parcelada no cartao;Eletronicos;Salario;Parcelada;2 de 10;300,00
+2026-06-24;Barzinho;R$ 80 meu e R$ 80 da minha namorada.;Lazer;Salario;Unica;;160,00
 ```
 
 Regra da coluna `Parcela`:
 
-- Se for parcelada, exibir `parcela_atual/total_parcelas`.
+- Se for parcelada, exibir `parcela_atual de total_parcelas`, por exemplo `3 de 5`.
 - Se não for parcelada, deixar vazio.
+
+O formato com barra, como `3/5`, não deve ser usado no CSV porque o Excel pode interpretá-lo automaticamente como uma data.
 
 Regra da coluna `Observacoes`:
 

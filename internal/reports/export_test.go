@@ -115,6 +115,29 @@ func TestGenerateExpensesCSVPreventsSpreadsheetFormulaInjection(t *testing.T) {
 	}
 }
 
+func TestGenerateExpensesCSVDoesNotFormatInstallmentAsDate(t *testing.T) {
+	dataset := exportDataset{
+		Options: exportOptions{ReportType: exportTypeExpenses},
+		Expenses: []expenses.Expense{{
+			Type:           "Parcelada",
+			CurrentInstall: 3,
+			Installments:   5,
+			Amount:         100,
+			Date:           time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC),
+		}},
+		CategoryNames: map[uint]string{},
+	}
+
+	content, err := generateExportCSV(dataset)
+	if err != nil {
+		t.Fatalf("failed to generate CSV: %v", err)
+	}
+	records := readCSVRecords(t, content)
+	if records[1][6] != "3 de 5" {
+		t.Fatalf("expected Excel-safe installment label, got %q", records[1][6])
+	}
+}
+
 func TestGenerateAllExportTypes(t *testing.T) {
 	dataset := completeExportTestDataset()
 	types := []string{
