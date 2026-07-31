@@ -85,11 +85,11 @@ func TestGenerateExpensesCSVPreservesSpecialCharacters(t *testing.T) {
 	if len(records) != 2 {
 		t.Fatalf("expected header and one row, got %d records", len(records))
 	}
-	if records[1][1] != "Mercado, centro" || records[1][2] != "Linha 1\n\"Linha 2\"" {
+	if records[1][1] != "Mercado, centro" || records[1][7] != "Linha 1\n\"Linha 2\"" {
 		t.Fatalf("special characters were not preserved: %#v", records[1])
 	}
-	if records[1][7] != "120,50" {
-		t.Fatalf("expected monetary value with two decimals, got %q", records[1][7])
+	if records[1][6] != "120,50" {
+		t.Fatalf("expected monetary value with two decimals, got %q", records[1][6])
 	}
 }
 
@@ -110,7 +110,7 @@ func TestGenerateExpensesCSVPreventsSpreadsheetFormulaInjection(t *testing.T) {
 		t.Fatalf("failed to generate CSV: %v", err)
 	}
 	records := readCSVRecords(t, content)
-	if records[1][1][0] != '\'' || records[1][2][0] != '\'' {
+	if records[1][1][0] != '\'' || records[1][7][0] != '\'' {
 		t.Fatalf("expected dangerous text cells to be escaped: %#v", records[1])
 	}
 }
@@ -133,8 +133,8 @@ func TestGenerateExpensesCSVDoesNotFormatInstallmentAsDate(t *testing.T) {
 		t.Fatalf("failed to generate CSV: %v", err)
 	}
 	records := readCSVRecords(t, content)
-	if records[1][6] != "3 de 5" {
-		t.Fatalf("expected Excel-safe installment label, got %q", records[1][6])
+	if records[1][5] != "3 de 5" {
+		t.Fatalf("expected Excel-safe installment label, got %q", records[1][5])
 	}
 }
 
