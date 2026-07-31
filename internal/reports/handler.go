@@ -25,6 +25,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 		reportsGroup.GET("/yearly-summary", getYearlySummary)
 		reportsGroup.GET("/installment-commitments", getInstallmentCommitments)
 		reportsGroup.GET("/month-comparison", getMonthComparison)
+		reportsGroup.GET("/export", exportReport)
 	}
 }
 

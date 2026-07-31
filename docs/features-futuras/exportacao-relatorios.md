@@ -1,6 +1,6 @@
 # Planejamento - Exportação De Relatórios
 
-Este documento descreve a funcionalidade planejada para exportar relatórios financeiros em CSV.
+Este documento descreve a funcionalidade completa planejada para exportar relatórios financeiros em CSV.
 
 A ideia é permitir que o usuário baixe os dados financeiros dele em arquivo, para abrir no Excel, Google Sheets, LibreOffice ou guardar como histórico.
 
@@ -21,6 +21,22 @@ csv
 ```
 
 Não haverá PDF no primeiro momento.
+
+## Escopo Da Entrega Planejada
+
+A funcionalidade será considerada completa quando o endpoint oferecer todos os sete tipos de exportação descritos neste documento:
+
+- despesas;
+- receitas;
+- categorias;
+- resumo mensal;
+- comparativo mensal;
+- compromissos parcelados;
+- relatório completo.
+
+A implementação pode ser organizada em etapas técnicas, mas os quatro primeiros tipos não representam o escopo final da funcionalidade. A entrega planejada inclui também `month_comparison`, `installment_commitments` e `full_report`.
+
+O formato inicial continuará sendo apenas CSV. PDF ou outros formatos são melhorias futuras e não fazem parte deste planejamento.
 
 ## Autenticação
 
@@ -73,7 +89,7 @@ format
 
 Formato do arquivo.
 
-Valor aceito no MVP:
+Valor aceito na primeira versão:
 
 ```txt
 csv
@@ -83,7 +99,7 @@ O `format` pode ser opcional com padrão `csv`, mas a recomendação é o front 
 
 ### Opcionais
 
-Usados apenas em `month_comparison`:
+Usados em `month_comparison` e `full_report`:
 
 ```txt
 compare_month
@@ -94,7 +110,7 @@ Se enviados, definem o mês comparado manualmente.
 
 Se não enviados, a API compara automaticamente com o mês anterior.
 
-Usados apenas em `installment_commitments`:
+Usados em `installment_commitments` e `full_report`:
 
 ```txt
 months
@@ -104,6 +120,8 @@ include_current_month_as_paid
 `months` define a quantidade de meses da linha do tempo.
 
 `include_current_month_as_paid=true` considera o mês base como já pago e projeta a partir do próximo mês.
+
+No `full_report`, quando os parâmetros opcionais não forem enviados, o comparativo deve usar o mês anterior e os compromissos devem usar os mesmos valores padrão definidos pelo endpoint individual.
 
 ## Resposta Da API
 
@@ -270,7 +288,7 @@ Linha do Tempo,Notebook,8,2026,300.00,3,10,Eletronicos,Salario
 GET /api/reports/export?type=full_report&month=6&year=2026&format=csv
 ```
 
-Exporta um CSV único com várias seções no mesmo arquivo.
+Exporta um CSV único com todas as seções financeiras disponíveis no escopo desta funcionalidade.
 
 Esse tipo deve juntar:
 
@@ -278,16 +296,15 @@ Esse tipo deve juntar:
 - receitas
 - despesas
 - categorias
-
-No futuro, pode incluir:
-
 - comparativo mensal
 - compromissos parcelados
+
+O `full_report` só será considerado completo quando consolidar as seis seções acima. Comparativo mensal e compromissos parcelados não ficam para uma evolução futura desta funcionalidade.
 
 Colunas sugeridas:
 
 ```csv
-Secao,Campo1,Campo2,Campo3,Campo4,Campo5,Campo6,Campo7
+Secao,Campo1,Campo2,Campo3,Campo4,Campo5,Campo6,Campo7,Campo8
 Resumo,Receitas,3500.00,,,,,,
 Resumo,Despesas,2400.00,,,,,,
 Resumo,Saldo,1100.00,,,,,,
@@ -297,9 +314,17 @@ Despesa,Mercado,Alimentacao,Salario,Unica,120.50,2026-06-01,
 Despesa,Barzinho,Lazer,Salario,Unica,160.00,2026-06-24,"R$ 80 meu e R$ 80 da minha namorada."
 Despesa,Notebook,Eletronicos,Salario,Parcelada,300.00,2026-06-05,"Compra parcelada no cartao"
 Categoria,Alimentacao,620.00,25.83,,,,,
+Comparativo Resumo,Despesas,2400.00,2160.00,240.00,11.11,subiu,
+Comparativo Categoria,Alimentacao,620.00,500.00,120.00,24.00,subiu,
+Compromisso Resumo,Total Restante,2100.00,,,,,,
+Compromisso Parcela,Notebook,7,2026,300.00,2,10,Eletronicos
 ```
 
 Na seção `Despesa` do `full_report`, o último campo deve conter as observações da despesa (`notes`).
+
+As seções de comparativo e compromissos devem reutilizar as mesmas regras dos tipos `month_comparison` e `installment_commitments`, evitando divergência entre o relatório individual e o relatório completo.
+
+O cabeçalho genérico do `full_report` possui nove colunas no total para comportar a seção mais extensa. Linhas menores devem ser completadas com campos vazios, mantendo a mesma quantidade de colunas em todo o arquivo.
 
 ## Validações
 
@@ -380,7 +405,23 @@ Fluxo sugerido:
 - Um único endpoint: `/api/reports/export`.
 - Formato inicial: `csv`.
 - Não usar API externa.
-- Não gerar PDF no MVP.
+- Não gerar PDF na primeira versão.
 - Resposta será arquivo, não JSON.
 - O arquivo deve ser gerado com dados do usuário autenticado.
-- `full_report` deve consolidar os principais dados mensais em um único CSV.
+- A entrega planejada deve implementar os sete tipos de exportação documentados.
+- `full_report` deve consolidar resumo, receitas, despesas, categorias, comparativo mensal e compromissos parcelados em um único CSV.
+- Implementar os tipos em etapas é permitido, mas a funcionalidade não será considerada completa enquanto algum dos sete tipos estiver ausente.
+
+## Critério De Pronto
+
+A exportação de relatórios estará concluída quando:
+
+- os sete valores aceitos em `type` estiverem implementados;
+- cada exportação respeitar o mês, o ano e o usuário autenticado;
+- `full_report` reunir todas as seções definidas neste documento;
+- arquivos sem dados continuarem válidos e com cabeçalho;
+- campos com vírgulas, aspas e quebras de linha forem escapados corretamente;
+- campos textuais iniciados por caracteres interpretados como fórmula por planilhas forem neutralizados;
+- nomes de arquivo e headers HTTP estiverem corretos;
+- houver testes para todos os tipos, validações, ausência de dados e isolamento entre usuários;
+- o download funcionar no front-end web e o salvamento ou compartilhamento funcionar no Android.
