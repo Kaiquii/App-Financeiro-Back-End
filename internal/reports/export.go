@@ -495,19 +495,20 @@ func writeFullReportCSV(writer *csv.Writer, dataset exportDataset) error {
 	if dataset.Comparison == nil || dataset.Commitments == nil {
 		return fmt.Errorf("missing full report sections")
 	}
-	if err := writer.Write([]string{"Secao", "Campo1", "Campo2", "Campo3", "Campo4", "Campo5", "Campo6", "Campo7", "Campo8"}); err != nil {
+
+	if err := writeFullReportSection(writer, "RESUMO MENSAL", []string{"Campo", "Valor"}, summaryRows(dataset.Summary)); err != nil {
 		return err
 	}
-	for _, row := range summaryRows(dataset.Summary) {
-		if err := writePaddedRow(writer, append([]string{"Resumo"}, row...), 9); err != nil {
-			return err
-		}
-	}
+
+	incomeRows := make([][]string, 0, len(dataset.Incomes))
 	for _, income := range dataset.Incomes {
-		if err := writePaddedRow(writer, []string{"Receita", safeCSVText(paymentSourceLabel(income.Source)), formatDecimal(income.Amount), strconv.Itoa(income.Month), strconv.Itoa(income.Year)}, 9); err != nil {
-			return err
-		}
+		incomeRows = append(incomeRows, []string{safeCSVText(paymentSourceLabel(income.Source)), formatDecimal(income.Amount), strconv.Itoa(income.Month), strconv.Itoa(income.Year)})
 	}
+	if err := writeFullReportSection(writer, "RECEITAS", []string{"Fonte", "Valor", "Mes", "Ano"}, incomeRows); err != nil {
+		return err
+	}
+
+	expenseRows := make([][]string, 0, len(dataset.Expenses))
 	for _, expense := range dataset.Expenses {
 		category := strings.TrimSpace(dataset.CategoryNames[expense.CategoryID])
 		if category == "" {
@@ -517,29 +518,124 @@ func writeFullReportCSV(writer *csv.Writer, dataset exportDataset) error {
 		if expenseTypeLabel(expense.Type) == "Parcelada" {
 			installment = formatInstallment(expense.CurrentInstall, expense.Installments)
 		}
-		row := []string{"Despesa", safeCSVText(expense.Description), safeCSVText(category), safeCSVText(paymentSourceLabel(expense.PaymentSource)), safeCSVText(expenseTypeLabel(expense.Type)), formatDecimal(expense.Amount), expense.Date.Format("2006-01-02"), installment, safeCSVText(expense.Notes)}
-		if err := writePaddedRow(writer, row, 9); err != nil {
-			return err
-		}
+		expenseRows = append(expenseRows, []string{expense.Date.Format("2006-01-02"), safeCSVText(expense.Description), safeCSVText(category), safeCSVText(paymentSourceLabel(expense.PaymentSource)), safeCSVText(expenseTypeLabel(expense.Type)), installment, formatDecimal(expense.Amount), safeCSVText(expense.Notes)})
 	}
+	if err := writeFullReportSection(writer, "DESPESAS", []string{"Data", "Descricao", "Categoria", "Fonte de Pagamento", "Tipo", "Parcela", "Valor", "Observacoes"}, expenseRows); err != nil {
+		return err
+	}
+
+	categoryRows := make([][]string, 0, len(dataset.CategorySummary))
 	for _, category := range dataset.CategorySummary {
-		if err := writePaddedRow(writer, []string{"Categoria", safeCSVText(category.CategoryName), formatDecimal(category.TotalAmount), formatDecimal(category.Percentage)}, 9); err != nil {
-			return err
+		categoryRows = append(categoryRows, []string{safeCSVText(category.CategoryName), formatDecimal(category.TotalAmount), formatDecimal(category.Percentage)})
+	}
+	if err := writeFullReportSection(writer, "RESUMO POR CATEGORIA", []string{"Categoria", "Valor", "Percentual"}, categoryRows); err != nil {
+		return err
+	}
+
+	comparison := *dataset.Comparison
+	comparisonHeader := []string{"Campo", "Valor Atual", "Valor Comparado", "Diferenca", "Percentual", "Status"}
+	comparisonSummaryRows := [][]string{
+		comparisonValuesRow("Receitas", comparison.Summary.CurrentIncome, comparison.Summary.PreviousIncome, comparison.Summary.IncomeDifference, comparison.Summary.IncomePercentage, comparison.Summary.IncomeStatus),
+		comparisonValuesRow("Despesas", comparison.Summary.CurrentExpense, comparison.Summary.PreviousExpense, comparison.Summary.ExpenseDifference, comparison.Summary.ExpensePercentage, comparison.Summary.ExpenseStatus),
+		comparisonValuesRow("Saldo", comparison.Summary.CurrentBalance, comparison.Summary.PreviousBalance, comparison.Summary.BalanceDifference, comparison.Summary.BalancePercentage, comparison.Summary.BalanceStatus),
+	}
+	if err := writeFullReportSection(writer, "COMPARATIVO - RESUMO", comparisonHeader, comparisonSummaryRows); err != nil {
+		return err
+	}
+
+	comparisonCategoryRows := make([][]string, 0, len(comparison.Categories))
+	for _, category := range comparison.Categories {
+		comparisonCategoryRows = append(comparisonCategoryRows, comparisonValuesRow(category.CategoryName, category.CurrentAmount, category.PreviousAmount, category.Difference, category.Percentage, category.Status))
+	}
+	if err := writeFullReportSection(writer, "COMPARATIVO - CATEGORIAS", comparisonHeader, comparisonCategoryRows); err != nil {
+		return err
+	}
+
+	comparisonSourceRows := make([][]string, 0, len(comparison.PaymentSources))
+	for _, source := range comparison.PaymentSources {
+		comparisonSourceRows = append(comparisonSourceRows, comparisonValuesRow(source.PaymentSource, source.CurrentAmount, source.PreviousAmount, source.Difference, source.Percentage, source.Status))
+	}
+	if err := writeFullReportSection(writer, "COMPARATIVO - FONTES DE PAGAMENTO", comparisonHeader, comparisonSourceRows); err != nil {
+		return err
+	}
+
+	comparisonTypeRows := make([][]string, 0, len(comparison.ExpenseTypes))
+	for _, expenseType := range comparison.ExpenseTypes {
+		comparisonTypeRows = append(comparisonTypeRows, comparisonValuesRow(expenseType.Type, expenseType.CurrentAmount, expenseType.PreviousAmount, expenseType.Difference, expenseType.Percentage, expenseType.Status))
+	}
+	if err := writeFullReportSection(writer, "COMPARATIVO - TIPOS DE DESPESA", comparisonHeader, comparisonTypeRows); err != nil {
+		return err
+	}
+
+	insightRows := make([][]string, 0, len(comparison.Insights))
+	for _, insight := range comparison.Insights {
+		insightRows = append(insightRows, []string{safeCSVText(insight)})
+	}
+	if err := writeFullReportSection(writer, "INSIGHTS DO COMPARATIVO", []string{"Mensagem"}, insightRows); err != nil {
+		return err
+	}
+
+	commitments := *dataset.Commitments
+	commitmentSummaryRows := [][]string{
+		{"Total Original", formatDecimal(commitments.Summary.OriginalTotal)},
+		{"Total Pago", formatDecimal(commitments.Summary.PaidTotal)},
+		{"Total Restante", formatDecimal(commitments.Summary.RemainingTotal)},
+		{"Parcelas Pagas", strconv.Itoa(commitments.Summary.PaidInstallments)},
+		{"Parcelas Restantes", strconv.Itoa(commitments.Summary.RemainingInstallments)},
+		{"Total de Compras", strconv.Itoa(commitments.Summary.TotalPurchases)},
+	}
+	if commitments.Summary.HeaviestMonth != nil {
+		heaviest := commitments.Summary.HeaviestMonth
+		commitmentSummaryRows = append(commitmentSummaryRows, []string{"Mes Mais Pesado", fmt.Sprintf("%02d/%04d - R$ %s", heaviest.Month, heaviest.Year, formatDecimal(heaviest.Total))})
+	}
+	if err := writeFullReportSection(writer, "COMPROMISSOS PARCELADOS - RESUMO", []string{"Campo", "Valor"}, commitmentSummaryRows); err != nil {
+		return err
+	}
+
+	purchaseRows := make([][]string, 0, len(commitments.Purchases))
+	for _, purchase := range commitments.Purchases {
+		progress := fmt.Sprintf("%d pagas de %d", purchase.PaidInstallments, purchase.TotalInstallments)
+		nextInstallment := ""
+		if purchase.NextInstallment != nil {
+			next := purchase.NextInstallment
+			nextInstallment = fmt.Sprintf("%s - %02d/%04d", formatInstallment(next.CurrentInstallment, next.TotalInstallments), next.Month, next.Year)
+		}
+		purchaseRows = append(purchaseRows, []string{safeCSVText(purchase.Description), safeCSVText(purchase.CategoryName), safeCSVText(paymentSourceLabel(purchase.PaymentSource)), formatDecimal(purchase.InstallmentAmount), formatDecimal(purchase.OriginalTotal), formatDecimal(purchase.PaidTotal), formatDecimal(purchase.RemainingTotal), progress, nextInstallment})
+	}
+	if err := writeFullReportSection(writer, "COMPROMISSOS PARCELADOS - COMPRAS", []string{"Descricao", "Categoria", "Fonte", "Valor da Parcela", "Total Original", "Total Pago", "Total Restante", "Progresso", "Proxima Parcela"}, purchaseRows); err != nil {
+		return err
+	}
+
+	timelineRows := make([][]string, 0)
+	for _, month := range commitments.Timeline {
+		for _, installment := range month.Installments {
+			timelineRows = append(timelineRows, []string{strconv.Itoa(installment.Month), strconv.Itoa(installment.Year), safeCSVText(installment.Description), safeCSVText(installment.CategoryName), safeCSVText(paymentSourceLabel(installment.PaymentSource)), formatInstallment(installment.CurrentInstallment, installment.TotalInstallments), formatDecimal(installment.Amount)})
 		}
 	}
-	for _, row := range monthComparisonRows(*dataset.Comparison) {
-		row[0] = "Comparativo " + row[0]
-		if err := writePaddedRow(writer, row, 9); err != nil {
-			return err
-		}
-	}
-	for _, row := range installmentCommitmentRows(*dataset.Commitments) {
-		row[0] = "Compromisso " + row[0]
-		if err := writePaddedRow(writer, row, 9); err != nil {
-			return err
-		}
+	if err := writeFullReportSection(writer, "COMPROMISSOS PARCELADOS - LINHA DO TEMPO", []string{"Mes", "Ano", "Descricao", "Categoria", "Fonte", "Parcela", "Valor"}, timelineRows); err != nil {
+		return err
 	}
 	return nil
+}
+
+func comparisonValuesRow(field string, current float64, previous float64, difference float64, percentage float64, status string) []string {
+	return []string{safeCSVText(field), formatDecimal(current), formatDecimal(previous), formatDecimal(difference), formatDecimal(percentage), safeCSVText(status)}
+}
+
+func writeFullReportSection(writer *csv.Writer, title string, header []string, rows [][]string) error {
+	const width = 9
+	if err := writePaddedRow(writer, []string{title}, width); err != nil {
+		return err
+	}
+	if err := writePaddedRow(writer, header, width); err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if err := writePaddedRow(writer, row, width); err != nil {
+			return err
+		}
+	}
+	return writePaddedRow(writer, nil, width)
 }
 
 func writePaddedRow(writer *csv.Writer, row []string, width int) error {

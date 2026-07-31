@@ -165,6 +165,38 @@ func TestGenerateAllExportTypes(t *testing.T) {
 	}
 }
 
+func TestFullReportUsesNamedSectionsAndHeaders(t *testing.T) {
+	dataset := completeExportTestDataset()
+	dataset.Options.ReportType = exportTypeFullReport
+
+	content, err := generateExportCSV(dataset)
+	if err != nil {
+		t.Fatalf("failed to generate full report: %v", err)
+	}
+	text := string(content)
+	if strings.Contains(text, "Campo1") || strings.Contains(text, "Campo2") {
+		t.Fatal("full report must not contain generic field names")
+	}
+	for _, expected := range []string{
+		"RESUMO MENSAL",
+		"RECEITAS",
+		"DESPESAS",
+		"RESUMO POR CATEGORIA",
+		"COMPARATIVO - RESUMO",
+		"COMPARATIVO - CATEGORIAS",
+		"COMPARATIVO - FONTES DE PAGAMENTO",
+		"COMPARATIVO - TIPOS DE DESPESA",
+		"INSIGHTS DO COMPARATIVO",
+		"COMPROMISSOS PARCELADOS - RESUMO",
+		"COMPROMISSOS PARCELADOS - COMPRAS",
+		"COMPROMISSOS PARCELADOS - LINHA DO TEMPO",
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("full report is missing section %q", expected)
+		}
+	}
+}
+
 func TestEmptyExportsKeepTheirHeader(t *testing.T) {
 	for _, reportType := range []string{exportTypeExpenses, exportTypeIncomes, exportTypeCategories} {
 		dataset := exportDataset{Options: exportOptions{ReportType: reportType}, CategoryNames: map[uint]string{}}

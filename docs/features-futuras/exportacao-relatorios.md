@@ -319,30 +319,50 @@ Esse tipo deve juntar:
 
 O `full_report` só será considerado completo quando consolidar as seis seções acima. Comparativo mensal e compromissos parcelados não ficam para uma evolução futura desta funcionalidade.
 
-Colunas sugeridas:
+Organização do arquivo:
 
 ```csv
-Secao,Campo1,Campo2,Campo3,Campo4,Campo5,Campo6,Campo7,Campo8
-Resumo,Receitas,3500.00,,,,,,
-Resumo,Despesas,2400.00,,,,,,
-Resumo,Saldo,1100.00,,,,,,
-Receita,Salario,3000.00,6,2026,,,,
-Receita,Renda Extra,500.00,6,2026,,,,
-Despesa,Mercado,Alimentacao,Salario,Unica,120.50,2026-06-01,
-Despesa,Barzinho,Lazer,Salario,Unica,160.00,2026-06-24,"R$ 80 meu e R$ 80 da minha namorada."
-Despesa,Notebook,Eletronicos,Salario,Parcelada,300.00,2026-06-05,"Compra parcelada no cartao"
-Categoria,Alimentacao,620.00,25.83,,,,,
-Comparativo Resumo,Despesas,2400.00,2160.00,240.00,11.11,subiu,
-Comparativo Categoria,Alimentacao,620.00,500.00,120.00,24.00,subiu,
-Compromisso Resumo,Total Restante,2100.00,,,,,,
-Compromisso Parcela,Notebook,7,2026,300.00,2,10,Eletronicos
+RESUMO MENSAL
+Campo;Valor
+Receitas;3500,00
+Despesas;2400,00
+Saldo;1100,00
+
+RECEITAS
+Fonte;Valor;Mes;Ano
+Salario;3000,00;6;2026
+
+DESPESAS
+Data;Descricao;Categoria;Fonte de Pagamento;Tipo;Parcela;Valor;Observacoes
+2026-06-05;Notebook;Eletronicos;Salario;Parcelada;2 de 10;300,00;Compra parcelada no cartao
+
+COMPARATIVO - RESUMO
+Campo;Valor Atual;Valor Comparado;Diferenca;Percentual;Status
+Despesas;2400,00;2160,00;240,00;11,11;subiu
 ```
 
-Na seção `Despesa` do `full_report`, o último campo deve conter as observações da despesa (`notes`).
+Cada bloco deve ter um título, um cabeçalho específico e uma linha vazia antes do próximo bloco. Não devem existir nomes genéricos como `Campo1`, `Campo2` ou `Campo3`.
+
+O relatório completo deve separar os seguintes blocos:
+
+- resumo mensal;
+- receitas;
+- despesas;
+- resumo por categoria;
+- comparativo do resumo;
+- comparativo por categoria;
+- comparativo por fonte de pagamento;
+- comparativo por tipo de despesa;
+- insights do comparativo;
+- resumo dos compromissos parcelados;
+- compras parceladas;
+- linha do tempo dos compromissos parcelados.
+
+Na seção `DESPESAS`, o último campo deve conter as observações da despesa (`notes`).
 
 As seções de comparativo e compromissos devem reutilizar as mesmas regras dos tipos `month_comparison` e `installment_commitments`, evitando divergência entre o relatório individual e o relatório completo.
 
-O cabeçalho genérico do `full_report` possui nove colunas no total para comportar a seção mais extensa. Linhas menores devem ser completadas com campos vazios, mantendo a mesma quantidade de colunas em todo o arquivo.
+Internamente, todas as linhas podem ser completadas com campos vazios até a largura da seção mais extensa. Isso mantém o CSV consistente sem mostrar títulos genéricos ao usuário.
 
 ## Validações
 
