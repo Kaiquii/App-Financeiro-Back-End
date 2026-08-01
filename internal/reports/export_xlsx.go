@@ -175,7 +175,6 @@ func writeXLSXSheet(workbook *excelize.File, styles xlsxStyles, sheet xlsxSheet)
 	}
 
 	row := 4
-	firstHeaderRow := 0
 	for sectionIndex, section := range sheet.Sections {
 		sectionLastColumn, _ := excelize.ColumnNumberToName(maxInt(1, len(section.Headers)))
 		if err := workbook.MergeCell(sheet.Name, fmt.Sprintf("A%d", row), fmt.Sprintf("%s%d", sectionLastColumn, row)); err != nil {
@@ -190,9 +189,6 @@ func writeXLSXSheet(workbook *excelize.File, styles xlsxStyles, sheet xlsxSheet)
 		row++
 
 		headerRow := row
-		if firstHeaderRow == 0 {
-			firstHeaderRow = headerRow
-		}
 		for columnIndex, header := range section.Headers {
 			cell, _ := excelize.CoordinatesToCellName(columnIndex+1, headerRow)
 			if err := workbook.SetCellValue(sheet.Name, cell, header); err != nil {
@@ -239,14 +235,6 @@ func writeXLSXSheet(workbook *excelize.File, styles xlsxStyles, sheet xlsxSheet)
 			width = 46
 		}
 		if err := workbook.SetColWidth(sheet.Name, column, column, width); err != nil {
-			return err
-		}
-	}
-
-	if firstHeaderRow > 0 {
-		if err := workbook.SetPanes(sheet.Name, &excelize.Panes{
-			Freeze: true, YSplit: firstHeaderRow, TopLeftCell: fmt.Sprintf("A%d", firstHeaderRow+1), ActivePane: "bottomLeft",
-		}); err != nil {
 			return err
 		}
 	}

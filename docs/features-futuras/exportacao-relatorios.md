@@ -539,7 +539,6 @@ O `full_report` em XLSX deve separar o conteúdo em abas reais:
 - datas armazenadas como datas;
 - largura de colunas adequada ao conteúdo, com limite para textos longos;
 - quebra de linha nas observações;
-- cabeçalho congelado nas tabelas extensas;
 - filtros nas abas de receitas e despesas;
 - saldo positivo e negativo com estilos visuais distintos;
 - nomes de abas e colunas em português;
