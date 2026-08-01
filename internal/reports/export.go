@@ -112,7 +112,7 @@ func exportReport(c *gin.Context) {
 
 func generateExportFile(dataset exportDataset) ([]byte, string, string, error) {
 	switch dataset.Options.Format {
-	case "", "csv":
+	case "csv":
 		content, err := generateExportCSV(dataset)
 		return content, "text/csv; charset=utf-8", "csv", err
 	case "xlsx":
@@ -126,7 +126,7 @@ func generateExportFile(dataset exportDataset) ([]byte, string, string, error) {
 func parseExportOptions(values url.Values) (exportOptions, error) {
 	options := exportOptions{
 		ReportType: strings.TrimSpace(values.Get("type")),
-		Format:     "csv",
+		Format:     strings.TrimSpace(strings.ToLower(values.Get("format"))),
 		Months:     12,
 	}
 
@@ -137,9 +137,8 @@ func parseExportOptions(values url.Values) (exportOptions, error) {
 		return options, fmt.Errorf("Tipo de exportacao invalido")
 	}
 
-	format := strings.TrimSpace(strings.ToLower(values.Get("format")))
-	if format != "" {
-		options.Format = format
+	if options.Format == "" {
+		return options, fmt.Errorf("Formato de exportacao e obrigatorio. Use csv ou xlsx")
 	}
 	if options.Format != "csv" && options.Format != "xlsx" {
 		return options, fmt.Errorf("Formato invalido. Use csv ou xlsx")

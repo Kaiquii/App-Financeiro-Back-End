@@ -124,7 +124,7 @@ Valor planejado:
 pdf
 ```
 
-O `format` pode ser opcional com padrão `csv`, mas a recomendação é o front enviar explicitamente.
+O `format` é obrigatório. O front deve enviar explicitamente a escolha do usuário entre `csv` e `xlsx`.
 
 ### Opcionais
 
@@ -406,6 +406,7 @@ Validações:
 
 - `type` é obrigatório.
 - `type` deve ser um dos tipos aceitos.
+- `format` é obrigatório;
 - atualmente, `format` aceita `csv` e `xlsx`;
 - após a próxima etapa, `format` também aceitará `pdf`;
 - `month` deve estar entre 1 e 12.
@@ -418,6 +419,12 @@ Exemplos de erro:
 ```json
 {
   "error": "Tipo de exportacao invalido"
+}
+```
+
+```json
+{
+  "error": "Formato de exportacao e obrigatorio. Use csv ou xlsx"
 }
 ```
 
@@ -474,7 +481,7 @@ Fluxo sugerido:
 ## Decisões Atuais
 
 - Um único endpoint: `/api/reports/export`.
-- CSV permanece como formato padrão quando `format` não for enviado.
+- O front web ou Android deve sempre enviar o formato escolhido pelo usuário.
 - XLSX é selecionado pelo parâmetro `format`; o PDF seguirá o mesmo padrão quando for implementado.
 - Não usar API externa.
 - Resposta será arquivo, não JSON.

@@ -11,7 +11,7 @@ format=csv
 format=xlsx
 ```
 
-O CSV continua sendo o padrão quando `format` não é enviado. O formato `pdf` permanece planejado.
+O `format` é obrigatório e deve refletir a escolha do usuário entre CSV e XLSX. O formato `pdf` permanece planejado.
 
 Endpoint único:
 
@@ -125,7 +125,7 @@ Na aba `Params`, adicione:
 | `type` | `expenses` | Sim |
 | `month` | `7` | Sim |
 | `year` | `2026` | Sim |
-| `format` | `csv` ou `xlsx` | Recomendado |
+| `format` | `csv` ou `xlsx` | Sim |
 
 A URL montada será:
 
@@ -350,6 +350,10 @@ month_comparison
 installment_commitments
 full_report
 ```
+
+### `400 Formato de exportacao e obrigatorio. Use csv ou xlsx`
+
+O parâmetro `format` não foi enviado. O web e o Android devem enviar a escolha feita pelo usuário.
 
 ### `400 Formato invalido. Use csv ou xlsx`
 
