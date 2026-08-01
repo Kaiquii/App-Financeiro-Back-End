@@ -38,6 +38,7 @@ var exportFileLabels = map[string]string{
 
 type exportOptions struct {
 	ReportType              string
+	Format                  string
 	Month                   int
 	Year                    int
 	CompareMonth            int
@@ -96,22 +97,36 @@ func exportReport(c *gin.Context) {
 		return
 	}
 
-	content, err := generateExportCSV(dataset)
+	content, contentType, extension, err := generateExportFile(dataset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao gerar arquivo CSV"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao gerar arquivo de exportacao"})
 		return
 	}
 
-	filename := fmt.Sprintf("relatorio-%s-%04d-%02d.csv", exportFileLabels[options.ReportType], options.Year, options.Month)
-	c.Header("Content-Type", "text/csv; charset=utf-8")
+	filename := fmt.Sprintf("relatorio-%s-%04d-%02d.%s", exportFileLabels[options.ReportType], options.Year, options.Month, extension)
+	c.Header("Content-Type", contentType)
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	c.Header("X-Content-Type-Options", "nosniff")
-	c.Data(http.StatusOK, "text/csv; charset=utf-8", content)
+	c.Data(http.StatusOK, contentType, content)
+}
+
+func generateExportFile(dataset exportDataset) ([]byte, string, string, error) {
+	switch dataset.Options.Format {
+	case "", "csv":
+		content, err := generateExportCSV(dataset)
+		return content, "text/csv; charset=utf-8", "csv", err
+	case "xlsx":
+		content, err := generateExportXLSX(dataset)
+		return content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx", err
+	default:
+		return nil, "", "", fmt.Errorf("unsupported export format")
+	}
 }
 
 func parseExportOptions(values url.Values) (exportOptions, error) {
 	options := exportOptions{
 		ReportType: strings.TrimSpace(values.Get("type")),
+		Format:     "csv",
 		Months:     12,
 	}
 
@@ -123,8 +138,11 @@ func parseExportOptions(values url.Values) (exportOptions, error) {
 	}
 
 	format := strings.TrimSpace(strings.ToLower(values.Get("format")))
-	if format != "" && format != "csv" {
-		return options, fmt.Errorf("Formato invalido. Use csv")
+	if format != "" {
+		options.Format = format
+	}
+	if options.Format != "csv" && options.Format != "xlsx" {
+		return options, fmt.Errorf("Formato invalido. Use csv ou xlsx")
 	}
 
 	month, err := strconv.Atoi(values.Get("month"))

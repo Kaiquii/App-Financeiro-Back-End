@@ -8,9 +8,10 @@ O backend aceita atualmente:
 
 ```txt
 format=csv
+format=xlsx
 ```
 
-Os formatos `xlsx` e `pdf` estão planejados, mas ainda não estão implementados.
+O CSV continua sendo o padrão quando `format` não é enviado. O formato `pdf` permanece planejado.
 
 Endpoint único:
 
@@ -124,7 +125,7 @@ Na aba `Params`, adicione:
 | `type` | `expenses` | Sim |
 | `month` | `7` | Sim |
 | `year` | `2026` | Sim |
-| `format` | `csv` | Recomendado |
+| `format` | `csv` ou `xlsx` | Recomendado |
 
 A URL montada será:
 
@@ -140,7 +141,7 @@ Forma recomendada:
 
 1. Clique na seta ao lado de `Send`.
 2. Escolha `Send and Download`.
-3. Selecione a pasta e salve o arquivo com extensão `.csv`.
+3. Selecione a pasta e salve o arquivo com a extensão indicada no header `Content-Disposition`: `.csv` ou `.xlsx`.
 
 Alternativa:
 
@@ -232,6 +233,14 @@ O CSV completo contém blocos separados para:
 - compras parceladas;
 - linha do tempo dos parcelamentos.
 
+Para gerar qualquer um dos sete relatórios como planilha, troque apenas o formato:
+
+```http
+GET {{base_url}}/api/reports/export?type=full_report&month=7&year=2026&format=xlsx
+```
+
+O XLSX completo contém as abas `Resumo`, `Receitas`, `Despesas`, `Categorias`, `Comparativo`, `Parcelamentos` e `Insights`.
+
 ## 6. Conferir A Resposta
 
 Status esperado:
@@ -249,6 +258,14 @@ X-Content-Type-Options: nosniff
 ```
 
 O nome muda conforme o tipo solicitado.
+
+Para XLSX, os headers esperados são:
+
+```http
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Content-Disposition: attachment; filename="relatorio-despesas-2026-07.xlsx"
+X-Content-Type-Options: nosniff
+```
 
 ## 7. Validar O Arquivo No Excel
 
@@ -334,9 +351,9 @@ installment_commitments
 full_report
 ```
 
-### `400 Formato invalido. Use csv`
+### `400 Formato invalido. Use csv ou xlsx`
 
-Atualmente apenas `format=csv` está implementado. XLSX e PDF ainda estão planejados.
+Use `format=csv` ou `format=xlsx`. O PDF ainda está planejado.
 
 ### `400 Mes e ano sao obrigatorios e devem ser validos`
 

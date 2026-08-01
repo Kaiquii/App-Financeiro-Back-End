@@ -1,6 +1,6 @@
 # Exportação De Relatórios
 
-Este documento registra o que já foi implementado na exportação de relatórios e planeja a evolução para XLSX e PDF.
+Este documento registra o que já foi implementado na exportação de relatórios e planeja a evolução para PDF.
 
 Guia prático de uso e teste: [`docs/guia-exportacao-relatorios.md`](../guia-exportacao-relatorios.md).
 
@@ -16,22 +16,22 @@ GET /api/reports/export
 
 O endpoint retorna um arquivo para download, não JSON.
 
-Formato disponível atualmente:
+Formatos disponíveis atualmente:
 
 ```txt
 csv
+xlsx
 ```
 
-Formatos planejados:
+Formato planejado:
 
 ```txt
-xlsx
 pdf
 ```
 
 ## Estado Atual Da Implementação
 
-O backend já oferece os sete tipos de exportação em CSV:
+O backend já oferece os sete tipos de exportação em CSV e XLSX:
 
 - despesas;
 - receitas;
@@ -43,7 +43,7 @@ O backend já oferece os sete tipos de exportação em CSV:
 
 A implementação CSV inclui `month_comparison`, `installment_commitments` e `full_report`, além dos quatro relatórios básicos.
 
-XLSX e PDF serão adicionados como novos formatos no mesmo endpoint, sem remover ou alterar a disponibilidade do CSV.
+O XLSX foi adicionado no mesmo endpoint sem remover ou alterar a disponibilidade do CSV. O PDF continua planejado.
 
 Para abrir corretamente em instalações brasileiras do Microsoft Excel, o CSV deve usar:
 
@@ -111,16 +111,16 @@ format
 
 Formato do arquivo.
 
-Valor aceito atualmente:
+Valores aceitos atualmente:
 
 ```txt
 csv
+xlsx
 ```
 
-Valores planejados:
+Valor planejado:
 
 ```txt
-xlsx
 pdf
 ```
 
@@ -161,12 +161,14 @@ Content-Type: text/csv; charset=utf-8
 Content-Disposition: attachment; filename="relatorio-despesas-2026-06.csv"
 ```
 
-As respostas planejadas usarão:
+A resposta atual para XLSX usa:
 
 ```http
 Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 Content-Disposition: attachment; filename="relatorio-despesas-2026-06.xlsx"
 ```
+
+A resposta planejada para PDF usará:
 
 ```http
 Content-Type: application/pdf
@@ -404,8 +406,8 @@ Validações:
 
 - `type` é obrigatório.
 - `type` deve ser um dos tipos aceitos.
-- atualmente, `format` deve ser `csv`;
-- após as próximas etapas, `format` aceitará `csv`, `xlsx` e `pdf`;
+- atualmente, `format` aceita `csv` e `xlsx`;
+- após a próxima etapa, `format` também aceitará `pdf`;
 - `month` deve estar entre 1 e 12.
 - `year` deve ser maior ou igual a 2000.
 - `compare_month` e `compare_year` devem ser enviados juntos.
@@ -421,11 +423,11 @@ Exemplos de erro:
 
 ```json
 {
-  "error": "Formato invalido. Use csv"
+  "error": "Formato invalido. Use csv ou xlsx"
 }
 ```
 
-Quando XLSX e PDF estiverem implementados, a mensagem deverá listar os três formatos aceitos.
+Quando o PDF estiver implementado, a mensagem deverá listar os três formatos aceitos.
 
 ```json
 {
@@ -473,7 +475,7 @@ Fluxo sugerido:
 
 - Um único endpoint: `/api/reports/export`.
 - CSV permanece como formato padrão quando `format` não for enviado.
-- XLSX e PDF serão selecionados pelo mesmo parâmetro `format`.
+- XLSX é selecionado pelo parâmetro `format`; o PDF seguirá o mesmo padrão quando for implementado.
 - Não usar API externa.
 - Resposta será arquivo, não JSON.
 - O arquivo deve ser gerado com dados do usuário autenticado.
@@ -499,13 +501,13 @@ Fluxo sugerido:
 - `full_report` dividido em blocos com títulos e cabeçalhos próprios;
 - testes automatizados dos sete tipos, validações, caracteres especiais, arquivos vazios e autenticação.
 
-Itens ainda externos ao backend CSV:
+Itens ainda externos ao backend de exportação:
 
 - integrar seleção e download no front-end web;
 - integrar salvamento e compartilhamento no Android;
 - validar a experiência final em produção com usuários autenticados.
 
-## Planejamento - XLSX
+## Implementação - XLSX
 
 ### Objetivo
 
@@ -529,7 +531,7 @@ O `full_report` em XLSX deve separar o conteúdo em abas reais:
 - `Parcelamentos`;
 - `Insights`.
 
-### Formatação Planejada
+### Formatação Implementada
 
 - títulos e cabeçalhos destacados;
 - valores numéricos armazenados como números e formatados como moeda;
@@ -553,6 +555,8 @@ O `full_report` em XLSX deve separar o conteúdo em abas reais:
 - arquivos sem dados continuarem válidos, com aba e cabeçalho;
 - testes cobrirem conteúdo, nomes das abas, formatos e isolamento por usuário;
 - download funcionar no web e salvamento ou compartilhamento funcionar no Android.
+
+Os critérios de backend estão implementados e cobertos por testes automatizados. A integração da experiência de download permanece sob responsabilidade dos clientes web e Android.
 
 ## Planejamento - PDF
 
@@ -595,7 +599,7 @@ GET /api/reports/export?type=summary&month=7&year=2026&format=pdf
 ## Ordem Planejada De Implementação
 
 1. Manter e integrar a exportação CSV já implementada.
-2. Implementar XLSX com abas e formatação nativa.
+2. Implementar XLSX com abas e formatação nativa. Concluído.
 3. Integrar XLSX no web e Android.
 4. Implementar PDF começando pelo resumo e relatórios menores.
 5. Implementar o relatório completo em PDF com paginação.
