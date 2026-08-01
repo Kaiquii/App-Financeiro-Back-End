@@ -118,6 +118,9 @@ func generateExportFile(dataset exportDataset) ([]byte, string, string, error) {
 	case "xlsx":
 		content, err := generateExportXLSX(dataset)
 		return content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx", err
+	case "pdf":
+		content, err := generateExportPDF(dataset)
+		return content, "application/pdf", "pdf", err
 	default:
 		return nil, "", "", fmt.Errorf("unsupported export format")
 	}
@@ -138,10 +141,10 @@ func parseExportOptions(values url.Values) (exportOptions, error) {
 	}
 
 	if options.Format == "" {
-		return options, fmt.Errorf("Formato de exportacao e obrigatorio. Use csv ou xlsx")
+		return options, fmt.Errorf("Formato de exportacao e obrigatorio. Use csv, xlsx ou pdf")
 	}
-	if options.Format != "csv" && options.Format != "xlsx" {
-		return options, fmt.Errorf("Formato invalido. Use csv ou xlsx")
+	if options.Format != "csv" && options.Format != "xlsx" && options.Format != "pdf" {
+		return options, fmt.Errorf("Formato invalido. Use csv, xlsx ou pdf")
 	}
 
 	month, err := strconv.Atoi(values.Get("month"))

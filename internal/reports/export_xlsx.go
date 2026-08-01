@@ -462,10 +462,10 @@ func xlsxCommitmentSections(commitments InstallmentCommitmentsResponse) []xlsxSe
 
 func xlsxPeriodSubtitle(options exportOptions) string {
 	base := fmt.Sprintf("Período: %02d/%04d", options.Month, options.Year)
-	if options.ReportType == exportTypeMonthComparison || options.ReportType == exportTypeFullReport {
+	if (options.ReportType == exportTypeMonthComparison || options.ReportType == exportTypeFullReport) && options.CompareMonth >= 1 && options.CompareYear >= 2000 {
 		base += fmt.Sprintf(" | Comparado a: %02d/%04d", options.CompareMonth, options.CompareYear)
 	}
-	if options.ReportType == exportTypeInstallmentCommitments || options.ReportType == exportTypeFullReport {
+	if (options.ReportType == exportTypeInstallmentCommitments || options.ReportType == exportTypeFullReport) && options.Months > 0 {
 		base += fmt.Sprintf(" | Projeção: %d meses", options.Months)
 	}
 	return base + " | Gerado em: " + time.Now().Format("02/01/2006 15:04")

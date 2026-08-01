@@ -42,7 +42,7 @@ func TestParseExportOptionsRejectsInvalidParameters(t *testing.T) {
 		{name: "missing type", values: url.Values{"month": {"6"}, "year": {"2026"}}},
 		{name: "invalid type", values: url.Values{"type": {"pdf"}, "month": {"6"}, "year": {"2026"}}},
 		{name: "missing format", values: url.Values{"type": {exportTypeSummary}, "month": {"6"}, "year": {"2026"}}},
-		{name: "invalid format", values: url.Values{"type": {exportTypeSummary}, "month": {"6"}, "year": {"2026"}, "format": {"pdf"}}},
+		{name: "invalid format", values: url.Values{"type": {exportTypeSummary}, "month": {"6"}, "year": {"2026"}, "format": {"xml"}}},
 		{name: "invalid month", values: url.Values{"type": {exportTypeSummary}, "month": {"13"}, "year": {"2026"}}},
 		{name: "invalid year", values: url.Values{"type": {exportTypeSummary}, "month": {"6"}, "year": {"1999"}}},
 		{name: "incomplete comparison", values: url.Values{"type": {exportTypeMonthComparison}, "month": {"6"}, "year": {"2026"}, "compare_month": {"5"}}},

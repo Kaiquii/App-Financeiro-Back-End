@@ -9,9 +9,10 @@ O backend aceita atualmente:
 ```txt
 format=csv
 format=xlsx
+format=pdf
 ```
 
-O `format` é obrigatório e deve refletir a escolha do usuário entre CSV e XLSX. O formato `pdf` permanece planejado.
+O `format` é obrigatório e deve refletir a escolha do usuário entre CSV, XLSX e PDF.
 
 Endpoint único:
 
@@ -125,7 +126,7 @@ Na aba `Params`, adicione:
 | `type` | `expenses` | Sim |
 | `month` | `7` | Sim |
 | `year` | `2026` | Sim |
-| `format` | `csv` ou `xlsx` | Sim |
+| `format` | `csv`, `xlsx` ou `pdf` | Sim |
 
 A URL montada será:
 
@@ -241,6 +242,14 @@ GET {{base_url}}/api/reports/export?type=full_report&month=7&year=2026&format=xl
 
 O XLSX completo contém as abas `Resumo`, `Receitas`, `Despesas`, `Categorias`, `Comparativo`, `Parcelamentos` e `Insights`.
 
+Para gerar um relatório pronto para leitura, impressão ou compartilhamento, use PDF:
+
+```http
+GET {{base_url}}/api/reports/export?type=full_report&month=7&year=2026&format=pdf
+```
+
+O PDF completo organiza as mesmas informações em capítulos, alterna entre retrato e paisagem conforme o conteúdo e repete os cabeçalhos das tabelas após quebras de página.
+
 ## 6. Conferir A Resposta
 
 Status esperado:
@@ -267,7 +276,17 @@ Content-Disposition: attachment; filename="relatorio-despesas-2026-07.xlsx"
 X-Content-Type-Options: nosniff
 ```
 
-## 7. Validar O Arquivo No Excel
+Para PDF, os headers esperados são:
+
+```http
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="relatorio-despesas-2026-07.pdf"
+X-Content-Type-Options: nosniff
+```
+
+## 7. Validar Os Arquivos
+
+### CSV E XLSX No Excel
 
 Abra o arquivo baixado diretamente no Excel e confira:
 
@@ -287,6 +306,18 @@ separador de colunas: ;
 separador decimal: ,
 codificação: UTF-8 com BOM
 ```
+
+### PDF
+
+Abra o PDF no navegador ou em um leitor de documentos e confira:
+
+- título, período e data de geração legíveis;
+- valores monetários e acentuação corretos;
+- tabelas sem textos cortados ou sobrepostos;
+- cabeçalhos repetidos quando a tabela ocupa mais de uma página;
+- compras parceladas exibidas em blocos legíveis;
+- relatório completo dividido em capítulos;
+- numeração de páginas no rodapé.
 
 ## 8. Teste Rápido Pelo PowerShell
 
@@ -351,13 +382,13 @@ installment_commitments
 full_report
 ```
 
-### `400 Formato de exportacao e obrigatorio. Use csv ou xlsx`
+### `400 Formato de exportacao e obrigatorio. Use csv, xlsx ou pdf`
 
 O parâmetro `format` não foi enviado. O web e o Android devem enviar a escolha feita pelo usuário.
 
-### `400 Formato invalido. Use csv ou xlsx`
+### `400 Formato invalido. Use csv, xlsx ou pdf`
 
-Use `format=csv` ou `format=xlsx`. O PDF ainda está planejado.
+Use `format=csv`, `format=xlsx` ou `format=pdf`.
 
 ### `400 Mes e ano sao obrigatorios e devem ser validos`
 

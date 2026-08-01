@@ -1,6 +1,6 @@
 # Exportação De Relatórios
 
-Este documento registra o que já foi implementado na exportação de relatórios e planeja a evolução para PDF.
+Este documento registra a implementação da exportação de relatórios em CSV, XLSX e PDF.
 
 Guia prático de uso e teste: [`docs/guia-exportacao-relatorios.md`](../guia-exportacao-relatorios.md).
 
@@ -21,17 +21,12 @@ Formatos disponíveis atualmente:
 ```txt
 csv
 xlsx
-```
-
-Formato planejado:
-
-```txt
 pdf
 ```
 
 ## Estado Atual Da Implementação
 
-O backend já oferece os sete tipos de exportação em CSV e XLSX:
+O backend já oferece os sete tipos de exportação em CSV, XLSX e PDF:
 
 - despesas;
 - receitas;
@@ -43,7 +38,7 @@ O backend já oferece os sete tipos de exportação em CSV e XLSX:
 
 A implementação CSV inclui `month_comparison`, `installment_commitments` e `full_report`, além dos quatro relatórios básicos.
 
-O XLSX foi adicionado no mesmo endpoint sem remover ou alterar a disponibilidade do CSV. O PDF continua planejado.
+XLSX e PDF foram adicionados no mesmo endpoint sem remover ou alterar a disponibilidade do CSV.
 
 Para abrir corretamente em instalações brasileiras do Microsoft Excel, o CSV deve usar:
 
@@ -116,15 +111,10 @@ Valores aceitos atualmente:
 ```txt
 csv
 xlsx
-```
-
-Valor planejado:
-
-```txt
 pdf
 ```
 
-O `format` é obrigatório. O front deve enviar explicitamente a escolha do usuário entre `csv` e `xlsx`.
+O `format` é obrigatório. O front deve enviar explicitamente a escolha do usuário entre `csv`, `xlsx` e `pdf`.
 
 ### Opcionais
 
@@ -168,7 +158,7 @@ Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 Content-Disposition: attachment; filename="relatorio-despesas-2026-06.xlsx"
 ```
 
-A resposta planejada para PDF usará:
+A resposta atual para PDF usa:
 
 ```http
 Content-Type: application/pdf
@@ -407,8 +397,7 @@ Validações:
 - `type` é obrigatório.
 - `type` deve ser um dos tipos aceitos.
 - `format` é obrigatório;
-- atualmente, `format` aceita `csv` e `xlsx`;
-- após a próxima etapa, `format` também aceitará `pdf`;
+- atualmente, `format` aceita `csv`, `xlsx` e `pdf`;
 - `month` deve estar entre 1 e 12.
 - `year` deve ser maior ou igual a 2000.
 - `compare_month` e `compare_year` devem ser enviados juntos.
@@ -424,17 +413,15 @@ Exemplos de erro:
 
 ```json
 {
-  "error": "Formato de exportacao e obrigatorio. Use csv ou xlsx"
+  "error": "Formato de exportacao e obrigatorio. Use csv, xlsx ou pdf"
 }
 ```
 
 ```json
 {
-  "error": "Formato invalido. Use csv ou xlsx"
+  "error": "Formato invalido. Use csv, xlsx ou pdf"
 }
 ```
-
-Quando o PDF estiver implementado, a mensagem deverá listar os três formatos aceitos.
 
 ```json
 {
@@ -482,7 +469,7 @@ Fluxo sugerido:
 
 - Um único endpoint: `/api/reports/export`.
 - O front web ou Android deve sempre enviar o formato escolhido pelo usuário.
-- XLSX é selecionado pelo parâmetro `format`; o PDF seguirá o mesmo padrão quando for implementado.
+- CSV, XLSX e PDF são selecionados pelo parâmetro obrigatório `format`.
 - Não usar API externa.
 - Resposta será arquivo, não JSON.
 - O arquivo deve ser gerado com dados do usuário autenticado.
@@ -564,11 +551,11 @@ O `full_report` em XLSX deve separar o conteúdo em abas reais:
 
 Os critérios de backend estão implementados e cobertos por testes automatizados. A integração da experiência de download permanece sob responsabilidade dos clientes web e Android.
 
-## Planejamento - PDF
+## Implementação - PDF
 
 ### Objetivo
 
-Adicionar `format=pdf` para gerar relatórios voltados à leitura, apresentação, impressão e compartilhamento. PDF não substitui CSV ou XLSX para análise dos dados.
+O `format=pdf` gera relatórios voltados à leitura, apresentação, impressão e compartilhamento. PDF não substitui CSV ou XLSX para análise dos dados.
 
 Exemplo:
 
@@ -602,11 +589,13 @@ GET /api/reports/export?type=summary&month=7&year=2026&format=pdf
 - testes verificarem geração, páginas e conteúdo essencial;
 - arquivo abrir nos leitores de PDF do navegador e Android.
 
+Os critérios de backend estão implementados. A homologação final de download e abertura permanece sob responsabilidade dos clientes web e Android.
+
 ## Ordem Planejada De Implementação
 
 1. Manter e integrar a exportação CSV já implementada.
 2. Implementar XLSX com abas e formatação nativa. Concluído.
 3. Integrar XLSX no web e Android.
-4. Implementar PDF começando pelo resumo e relatórios menores.
-5. Implementar o relatório completo em PDF com paginação.
+4. Implementar PDF começando pelo resumo e relatórios menores. Concluído.
+5. Implementar o relatório completo em PDF com paginação. Concluído.
 6. Integrar PDF no web e Android.
