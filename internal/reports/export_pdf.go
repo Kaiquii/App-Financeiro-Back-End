@@ -109,10 +109,10 @@ func (renderer *pdfReportRenderer) renderSheet(sheet xlsxSheet) error {
 
 func (renderer *pdfReportRenderer) addPage(orientation, title, subtitle string) {
 	renderer.document.AddPageFormat(orientation, fpdf.SizeType{Wd: 210, Ht: 297})
-	pageWidth, _ := renderer.document.GetPageSize()
+	pageWidth, pageHeight := renderer.document.GetPageSize()
 
 	renderer.document.SetFillColor(23, 50, 77)
-	renderer.document.Rect(0, 0, pageWidth, 18, "F")
+	renderer.document.Rect(0, 0, maxFloat(pageWidth, pageHeight), 18, "F")
 	renderer.document.SetTextColor(255, 255, 255)
 	renderer.document.SetFont(pdfFontFamily, "B", 13)
 	renderer.document.SetXY(pdfMargin, 5)
