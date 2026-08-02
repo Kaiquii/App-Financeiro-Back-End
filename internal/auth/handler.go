@@ -6,6 +6,7 @@ import (
 	"Sobra_Ai_Back-end/internal/database"
 	"Sobra_Ai_Back-end/internal/expenses"
 	"Sobra_Ai_Back-end/internal/incomes"
+	"Sobra_Ai_Back-end/internal/pagination"
 	"Sobra_Ai_Back-end/internal/uploads"
 	"crypto/rand"
 	"errors"
@@ -357,11 +358,41 @@ func login(c *gin.Context) {
 }
 
 func getUsers(c *gin.Context) {
+	params, err := pagination.Parse(c.Request.URL.Query())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	var usersList []User
+	if !params.Enabled {
+		if err := database.DB.Find(&usersList).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar usuarios"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"total": len(usersList), "users": usersList})
+		return
+	}
 
-	database.DB.Find(&usersList)
+	var total int64
+	if err := database.DB.Model(&User{}).Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao contar usuarios"})
+		return
+	}
+	if err := database.DB.
+		Order("id asc").
+		Limit(params.Limit).
+		Offset(params.Offset).
+		Find(&usersList).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar usuarios"})
+		return
+	}
 
-	c.JSON(http.StatusOK, gin.H{"total": len(usersList), "users": usersList})
+	c.JSON(http.StatusOK, gin.H{
+		"total":      total,
+		"users":      usersList,
+		"pagination": pagination.NewMetadata(params, total),
+	})
 }
 
 func deleteUserByAdmin(c *gin.Context) {

@@ -1,6 +1,12 @@
 package appversion
 
-import "testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+)
 
 func TestNormalizePlatformAcceptsOnlyAndroid(t *testing.T) {
 	if got := normalizePlatform(" Android "); got != "android" {
@@ -35,5 +41,19 @@ func TestAppVersionResponse(t *testing.T) {
 	}
 	if response.MinRequiredVersionCode != 101 {
 		t.Fatalf("expected min required version code 101, got %d", response.MinRequiredVersionCode)
+	}
+}
+
+func TestListAppVersionsRejectsInvalidPaginationBeforeQuery(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Params = gin.Params{{Key: "platform", Value: "android"}}
+	context.Request = httptest.NewRequest(http.MethodGet, "/api/admin/app-version/android/history?page=0", nil)
+
+	listAppVersions(context)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", recorder.Code)
 	}
 }

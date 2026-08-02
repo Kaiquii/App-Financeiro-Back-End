@@ -3,6 +3,7 @@ package appversion
 import (
 	"Sobra_Ai_Back-end/internal/auth"
 	"Sobra_Ai_Back-end/internal/database"
+	"Sobra_Ai_Back-end/internal/pagination"
 	"errors"
 	"net/http"
 	"strconv"
@@ -146,12 +147,23 @@ func listAppVersions(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Plataforma invalida"})
 		return
 	}
+	params, err := pagination.Parse(c.Request.URL.Query())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	var versions []AppVersion
-	if err := database.DB.
-		Where("platform = ?", platform).
-		Order("latest_version_code desc, created_at desc").
-		Find(&versions).Error; err != nil {
+	var total int64
+	query := database.DB.Where("platform = ?", platform)
+	if params.Enabled {
+		if err := database.DB.Model(&AppVersion{}).Where("platform = ?", platform).Count(&total).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao contar versoes"})
+			return
+		}
+		query = query.Limit(params.Limit).Offset(params.Offset)
+	}
+	if err := query.Order("latest_version_code desc, created_at desc").Find(&versions).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar historico de versoes"})
 		return
 	}
@@ -161,7 +173,15 @@ func listAppVersions(c *gin.Context) {
 		response = append(response, appVersionResponse(version))
 	}
 
-	c.JSON(http.StatusOK, gin.H{"total": len(response), "versions": response})
+	if !params.Enabled {
+		c.JSON(http.StatusOK, gin.H{"total": len(response), "versions": response})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"total":      total,
+		"versions":   response,
+		"pagination": pagination.NewMetadata(params, total),
+	})
 }
 
 func buildAppVersion(c *gin.Context, platform string, req SaveAppVersionRequest) (AppVersion, bool) {
