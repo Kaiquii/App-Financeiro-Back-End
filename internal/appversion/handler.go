@@ -5,7 +5,9 @@ import (
 	"Sobra_Ai_Back-end/internal/database"
 	"Sobra_Ai_Back-end/internal/pagination"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -152,12 +154,24 @@ func listAppVersions(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	filters, err := parseAppVersionFilters(c.Request.URL.Query())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	var versions []AppVersion
-	var total int64
-	query := database.DB.Where("platform = ?", platform)
+	var globalTotal int64
+	if err := database.DB.Model(&AppVersion{}).Where("platform = ?", platform).Count(&globalTotal).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao contar versoes"})
+		return
+	}
+
+	query := applyAppVersionFilters(database.DB.Model(&AppVersion{}).Where("platform = ?", platform), filters)
+	var filteredTotal int64
 	if params.Enabled {
-		if err := database.DB.Model(&AppVersion{}).Where("platform = ?", platform).Count(&total).Error; err != nil {
+		if err := applyAppVersionFilters(database.DB.Model(&AppVersion{}).Where("platform = ?", platform), filters).
+			Count(&filteredTotal).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao contar versoes"})
 			return
 		}
@@ -174,14 +188,55 @@ func listAppVersions(c *gin.Context) {
 	}
 
 	if !params.Enabled {
-		c.JSON(http.StatusOK, gin.H{"total": len(response), "versions": response})
+		c.JSON(http.StatusOK, gin.H{"total": globalTotal, "versions": response})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"total":      total,
+		"total":      globalTotal,
 		"versions":   response,
-		"pagination": pagination.NewMetadata(params, total),
+		"pagination": pagination.NewMetadata(params, filteredTotal),
 	})
+}
+
+type appVersionFilters struct {
+	Search             string
+	ForceUpdate        bool
+	ForceUpdateEnabled bool
+}
+
+func parseAppVersionFilters(values url.Values) (appVersionFilters, error) {
+	filters := appVersionFilters{Search: strings.TrimSpace(values.Get("search"))}
+	if !values.Has("force_update") {
+		return filters, nil
+	}
+
+	switch strings.ToLower(strings.TrimSpace(values.Get("force_update"))) {
+	case "true":
+		filters.ForceUpdateEnabled = true
+		filters.ForceUpdate = true
+	case "false":
+		filters.ForceUpdateEnabled = true
+		filters.ForceUpdate = false
+	default:
+		return appVersionFilters{}, fmt.Errorf("force_update deve ser true ou false")
+	}
+	return filters, nil
+}
+
+func applyAppVersionFilters(query *gorm.DB, filters appVersionFilters) *gorm.DB {
+	if filters.Search != "" {
+		pattern := "%" + strings.ToLower(filters.Search) + "%"
+		query = query.Where(
+			"(LOWER(latest_version_name) LIKE ? OR CAST(latest_version_code AS TEXT) LIKE ? OR LOWER(message) LIKE ?)",
+			pattern,
+			pattern,
+			pattern,
+		)
+	}
+	if filters.ForceUpdateEnabled {
+		query = query.Where("force_update = ?", filters.ForceUpdate)
+	}
+	return query
 }
 
 func buildAppVersion(c *gin.Context, platform string, req SaveAppVersionRequest) (AppVersion, bool) {

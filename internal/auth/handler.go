@@ -16,6 +16,7 @@ import (
 	"mime"
 	"net/http"
 	"net/smtp"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -382,10 +383,15 @@ func getUsers(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	filters, err := parseUserFilters(c.Request.URL.Query())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	var usersList []User
 	if !params.Enabled {
-		if err := database.DB.Find(&usersList).Error; err != nil {
+		if err := applyUserFilters(database.DB.Model(&User{}), filters).Find(&usersList).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar usuarios"})
 			return
 		}
@@ -394,11 +400,11 @@ func getUsers(c *gin.Context) {
 	}
 
 	var total int64
-	if err := database.DB.Model(&User{}).Count(&total).Error; err != nil {
+	if err := applyUserFilters(database.DB.Model(&User{}), filters).Count(&total).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao contar usuarios"})
 		return
 	}
-	if err := database.DB.
+	if err := applyUserFilters(database.DB.Model(&User{}), filters).
 		Order("id asc").
 		Limit(params.Limit).
 		Offset(params.Offset).
@@ -412,6 +418,52 @@ func getUsers(c *gin.Context) {
 		"users":      usersList,
 		"pagination": pagination.NewMetadata(params, total),
 	})
+}
+
+type userFilters struct {
+	Search        string
+	Role          string
+	Blocked       bool
+	StatusEnabled bool
+}
+
+func parseUserFilters(values url.Values) (userFilters, error) {
+	filters := userFilters{
+		Search: strings.TrimSpace(values.Get("search")),
+		Role:   strings.ToLower(strings.TrimSpace(values.Get("role"))),
+	}
+	if filters.Role != "" && filters.Role != "user" && filters.Role != "admin" {
+		return userFilters{}, fmt.Errorf("role deve ser user ou admin")
+	}
+
+	status := strings.ToLower(strings.TrimSpace(values.Get("status")))
+	switch status {
+	case "":
+	case "active":
+		filters.StatusEnabled = true
+		filters.Blocked = false
+	case "blocked":
+		filters.StatusEnabled = true
+		filters.Blocked = true
+	default:
+		return userFilters{}, fmt.Errorf("status deve ser active ou blocked")
+	}
+
+	return filters, nil
+}
+
+func applyUserFilters(query *gorm.DB, filters userFilters) *gorm.DB {
+	if filters.Search != "" {
+		pattern := "%" + strings.ToLower(filters.Search) + "%"
+		query = query.Where("(LOWER(name) LIKE ? OR LOWER(email) LIKE ?)", pattern, pattern)
+	}
+	if filters.Role != "" {
+		query = query.Where("LOWER(role) = ?", filters.Role)
+	}
+	if filters.StatusEnabled {
+		query = query.Where("access_blocked = ?", filters.Blocked)
+	}
+	return query
 }
 
 func deleteUserByAdmin(c *gin.Context) {
