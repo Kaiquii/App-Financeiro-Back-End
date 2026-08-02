@@ -1,8 +1,14 @@
 # ARQUIVOS DE AMBIENTE E SEGURANÇA (CRÍTICO)
 .env
 .env.*
+!.env.example
 *.pem
 *.key
+*.ppk
+*.p12
+*.pfx
+*.jks
+*.keystore
 
 # BINÁRIOS GERADOS PELO GO
 *.exe
@@ -13,12 +19,14 @@
 /api.exe
 /app.exe
 /api-financeira
+/bin/
 
 # TESTES E COBERTURA DE CÓDIGO
 *.test
 *.out
 coverage.txt
 coverage.out
+*.log
 
 # PASTAS DE DEPENDÊNCIAS
 /vendor/
@@ -41,4 +49,10 @@ Thumbs.db
 # Ignorar backups e imagens Docker
 *.tar
 *.dump
+*.backup
 migration-backup/
+
+# DADOS E ARQUIVOS LOCAIS GERADOS PELA APLICACAO
+/uploads/
+/tmp/
+/.codex-go-cache/

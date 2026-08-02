@@ -8,6 +8,7 @@ import (
 	"Sobra_Ai_Back-end/internal/database"
 	"Sobra_Ai_Back-end/internal/expenses"
 	"Sobra_Ai_Back-end/internal/incomes"
+	"Sobra_Ai_Back-end/internal/migrations"
 	"Sobra_Ai_Back-end/internal/reports"
 	"Sobra_Ai_Back-end/internal/uploads"
 	"Sobra_Ai_Back-end/internal/users"
@@ -25,11 +26,9 @@ func main() {
 	}
 
 	database.Connect()
-	appversion.PrepareSchema(database.DB)
 
-	err := database.DB.AutoMigrate(&auth.User{}, &auth.PasswordResetToken{}, &auth.RegistrationCode{}, &expenses.Expense{}, &incomes.Income{}, &categories.Category{}, &assistant.Conversation{}, &assistant.Message{}, &appversion.AppVersion{})
-	if err != nil {
-		log.Fatalf("Erro ao rodar migrações: %v", err)
+	if err := migrations.Validate(database.DB); err != nil {
+		log.Fatalf("Banco com migrations pendentes ou incompatíveis: %v", err)
 	}
 
 	router := gin.Default()
