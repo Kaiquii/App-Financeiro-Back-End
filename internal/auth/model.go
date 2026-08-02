@@ -25,6 +25,13 @@ type User struct {
 	AccessBlockedAt *time.Time `json:"access_blocked_at,omitempty"`
 }
 
+type UserMetricsResponse struct {
+	Total   int64 `json:"total"`
+	Active  int64 `json:"active"`
+	Blocked int64 `json:"blocked"`
+	Admins  int64 `json:"admins"`
+}
+
 type PasswordResetToken struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	UserID    uint      `gorm:"index" json:"user_id"`

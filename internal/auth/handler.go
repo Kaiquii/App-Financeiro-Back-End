@@ -46,10 +46,29 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 	adminGroup := rg.Group("/admin")
 	adminGroup.Use(AuthMiddleware(), AdminMiddleware())
 	{
+		adminGroup.GET("/users/metrics", getUserMetrics)
 		adminGroup.DELETE("/users/:id", deleteUserByAdmin)
 		adminGroup.PATCH("/users/:id/revoke-access", revokeUserAccessByAdmin)
 		adminGroup.PATCH("/users/:id/restore-access", restoreUserAccessByAdmin)
 	}
+}
+
+func getUserMetrics(c *gin.Context) {
+	var metrics UserMetricsResponse
+	err := database.DB.Model(&User{}).
+		Select(`
+			COUNT(*) AS total,
+			COALESCE(SUM(CASE WHEN access_blocked = ? THEN 1 ELSE 0 END), 0) AS active,
+			COALESCE(SUM(CASE WHEN access_blocked = ? THEN 1 ELSE 0 END), 0) AS blocked,
+			COALESCE(SUM(CASE WHEN role = ? THEN 1 ELSE 0 END), 0) AS admins
+		`, false, true, "admin").
+		Scan(&metrics).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar metricas de usuarios"})
+		return
+	}
+
+	c.JSON(http.StatusOK, metrics)
 }
 
 const (
