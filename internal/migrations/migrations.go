@@ -50,6 +50,7 @@ var registry []Migration
 func init() {
 	registry = []Migration{
 		{Version: 1, Name: "baseline_current_schema", Checksum: baselineRecordedChecksum, Up: migrateBaselineSchema},
+		{Version: 2, Name: "add_expense_payment_status", Checksum: "7bab1d036f6a54b35e3949df0cd2bb9c1d017396209a6abf886f633b7293e7c6", Up: addExpensePaymentStatus},
 	}
 }
 

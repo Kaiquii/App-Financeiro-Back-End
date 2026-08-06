@@ -3,20 +3,22 @@ package expenses
 import "time"
 
 type Expense struct {
-	ID             uint      `json:"id" gorm:"primaryKey"`
-	UserID         uint      `json:"user_id"`
-	SeriesID       string    `json:"series_id" gorm:"index"`
-	CategoryID     uint      `json:"category_id"`
-	Amount         float64   `json:"amount"`
-	Description    string    `json:"description"`
-	Notes          string    `json:"notes" gorm:"type:text"`
-	PaymentSource  string    `json:"payment_source"`
-	Date           time.Time `json:"date"`
-	Month          int       `json:"month"`
-	Year           int       `json:"year"`
-	Type           string    `json:"type"`
-	Installments   int       `json:"installments"`
-	CurrentInstall int       `json:"current_installment"`
+	ID             uint       `json:"id" gorm:"primaryKey"`
+	UserID         uint       `json:"user_id"`
+	SeriesID       string     `json:"series_id" gorm:"index"`
+	CategoryID     uint       `json:"category_id"`
+	Amount         float64    `json:"amount"`
+	Description    string     `json:"description"`
+	Notes          string     `json:"notes" gorm:"type:text"`
+	PaymentSource  string     `json:"payment_source"`
+	Date           time.Time  `json:"date"`
+	Month          int        `json:"month"`
+	Year           int        `json:"year"`
+	Type           string     `json:"type"`
+	Installments   int        `json:"installments"`
+	CurrentInstall int        `json:"current_installment"`
+	IsPaid         bool       `json:"is_paid"`
+	PaidAt         *time.Time `json:"paid_at,omitempty"`
 }
 
 type CreateExpenseRequest struct {
@@ -28,4 +30,10 @@ type CreateExpenseRequest struct {
 	Date          time.Time `json:"date" binding:"required"`
 	Type          string    `json:"type" binding:"required"`
 	Installments  int       `json:"installments"`
+}
+
+// UpdatePaymentStatusRequest changes only the visual payment status of an
+// expense. It intentionally does not change any financial amount or report.
+type UpdatePaymentStatusRequest struct {
+	IsPaid *bool `json:"is_paid" binding:"required"`
 }

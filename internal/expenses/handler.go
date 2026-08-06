@@ -44,6 +44,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 		expensesGroup.GET("/", getExpenses)
 		expensesGroup.GET("/:id", getExpenseByID)
 		expensesGroup.PATCH("/:id", updateExpense)
+		expensesGroup.PATCH("/:id/payment-status", updatePaymentStatus)
 		expensesGroup.DELETE("/:id", deleteExpense)
 	}
 }
@@ -164,12 +165,32 @@ func getExpenses(c *gin.Context) {
 		query = query.Where("type = ?", normalizedType)
 	}
 
+	if isPaid, filterByPaymentStatus, err := parsePaymentStatus(c.Query("payment_status")); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	} else if filterByPaymentStatus {
+		query = query.Where("is_paid = ?", isPaid)
+	}
+
 	if err := query.Find(&expensesList).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar despesas"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"total": len(expensesList), "expenses": expensesList})
+}
+
+func parsePaymentStatus(value string) (isPaid bool, enabled bool, err error) {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "":
+		return false, false, nil
+	case "paid", "paga", "pago":
+		return true, true, nil
+	case "pending", "pendente":
+		return false, true, nil
+	default:
+		return false, false, fmt.Errorf("Status de pagamento invalido. Use paid ou pending.")
+	}
 }
 
 func getExpenseByID(c *gin.Context) {
@@ -188,6 +209,47 @@ func getExpenseByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, expense)
+}
+
+func updatePaymentStatus(c *gin.Context) {
+	userID, ok := getUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario nao identificado"})
+		return
+	}
+
+	var req UpdatePaymentStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.IsPaid == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados invalidos: is_paid e obrigatorio"})
+		return
+	}
+
+	var expense Expense
+	if err := database.DB.Where("id = ? AND user_id = ?", c.Param("id"), userID).First(&expense).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Despesa nao encontrada ou nao pertence a voce"})
+		return
+	}
+
+	updates := map[string]interface{}{"is_paid": *req.IsPaid}
+	if *req.IsPaid {
+		now := time.Now()
+		updates["paid_at"] = now
+		expense.PaidAt = &now
+	} else {
+		updates["paid_at"] = nil
+		expense.PaidAt = nil
+	}
+	expense.IsPaid = *req.IsPaid
+
+	if err := database.DB.Model(&expense).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar status de pagamento"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Status de pagamento atualizado com sucesso!",
+		"expense": expense,
+	})
 }
 
 func updateExpense(c *gin.Context) {
