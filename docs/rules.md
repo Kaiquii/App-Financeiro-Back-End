@@ -11,3 +11,12 @@
 - Nunca interpretar uma autorizacao para backup, auditoria, migration ou consulta como permissao para publicar uma imagem, recriar containers ou alterar a API em producao.
 - Depois de concluir alteracoes locais, entregar os comandos ou o procedimento para o usuario realizar o deploy manualmente, a menos que ele autorize explicitamente o deploy pela ferramenta.
 - Em caso de duvida sobre o alcance da autorizacao, parar e pedir confirmacao. Nao executar a acao remota por inferencia.
+
+## Criterio De Conclusao Para Producao
+
+- Nunca considerar uma funcionalidade pronta, concluida ou apta para deploy apenas porque o fluxo principal foi implementado.
+- Antes de declarar conclusao, revisar tambem criacao, consulta, edicao, exclusao, transicoes entre estados, compatibilidade com dados existentes, relatorios, exportacoes e integracoes afetadas.
+- Validar que nenhuma operacao de edicao deixa dados financeiros inconsistentes. Em especial, qualquer alteracao de valor, fonte de pagamento ou lista relacionada deve preservar os totais e ocorrer de forma transacional.
+- Executar testes automatizados relevantes e registrar com clareza quando uma verificacao nao puder ser concluida. Um teste que nao foi executado ou que expirou nao e uma aprovacao.
+- Quando houver alteracao de banco, confirmar a migration, a compatibilidade com dados antigos, o procedimento de backup e o plano de rollback antes de recomendar deploy.
+- Se houver uma lacuna conhecida, informar explicitamente que a funcionalidade ainda nao esta pronta para producao e corrigir ou obter uma decisao do usuario antes de recomendar a publicacao.

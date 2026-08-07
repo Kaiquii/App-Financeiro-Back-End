@@ -326,6 +326,16 @@ func updateExpense(c *gin.Context) {
 		}
 	}
 
+	legacySource, hasLegacySource := updateData["payment_source"]
+	if hasLegacySource {
+		source, ok := legacySource.(string)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Origem de pagamento inválida"})
+			return
+		}
+		legacySource = source
+	}
+
 	updateFuture := false
 	if val, exists := updateData["update_future"]; exists {
 		if boolVal, ok := val.(bool); ok {
@@ -389,16 +399,17 @@ func updateExpense(c *gin.Context) {
 	}
 
 	var normalizedSplits []PaymentSplitInput
-	if hasPaymentSplits {
-		amount := expense.Amount
-		if value, exists := updateData["amount"]; exists {
-			parsed, ok := value.(float64)
-			if !ok {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Valor da despesa inválido"})
-				return
-			}
-			amount = parsed
+	shouldReplacePaymentSplits := false
+	amount := expense.Amount
+	if value, exists := updateData["amount"]; exists {
+		parsed, ok := value.(float64)
+		if !ok || parsed <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Valor da despesa inválido"})
+			return
 		}
+		amount = parsed
+	}
+	if hasPaymentSplits {
 		var err error
 		normalizedSplits, _, err = ValidatePaymentSplits(amount, "", requestedSplits)
 		if err != nil {
@@ -407,13 +418,26 @@ func updateExpense(c *gin.Context) {
 		}
 		// Keep the legacy field meaningful for old app versions.
 		updateData["payment_source"] = normalizedSplits[0].PaymentSource
+		shouldReplacePaymentSplits = true
+	} else if hasLegacySource {
+		var err error
+		normalizedSplits, _, err = ValidatePaymentSplits(amount, legacySource.(string), nil)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		updateData["payment_source"] = normalizedSplits[0].PaymentSource
+		shouldReplacePaymentSplits = true
+	} else if _, amountIsChanging := updateData["amount"]; amountIsChanging && len(expense.PaymentSplits) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Envie payment_splits ao alterar o valor de uma despesa com divisão de pagamento"})
+		return
 	}
 
 	if err := database.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&expense).Updates(updateData).Error; err != nil {
 			return err
 		}
-		if hasPaymentSplits {
+		if shouldReplacePaymentSplits {
 			if err := replacePaymentSplits(tx, expense.ID, normalizedSplits); err != nil {
 				return err
 			}
@@ -448,7 +472,7 @@ func updateExpense(c *gin.Context) {
 			Updates(futureData).Error; err != nil {
 			return err
 		}
-		if hasPaymentSplits {
+		if shouldReplacePaymentSplits {
 			for _, future := range futureExpenses {
 				if err := replacePaymentSplits(tx, future.ID, normalizedSplits); err != nil {
 					return err
