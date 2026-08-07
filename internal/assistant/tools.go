@@ -127,7 +127,7 @@ func getMonthlySummary(userID uint, month int, year int) (map[string]any, error)
 	}
 
 	var expensesList []expenses.Expense
-	if err := database.DB.Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&expensesList).Error; err != nil {
+	if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&expensesList).Error; err != nil {
 		return nil, err
 	}
 
@@ -149,13 +149,15 @@ func getMonthlySummary(userID uint, month int, year int) (map[string]any, error)
 
 	for _, expense := range expensesList {
 		totalExpense += expense.Amount
-		switch normalizeMoneySource(expense.PaymentSource) {
-		case "salario":
-			totalSpentSalary += expense.Amount
-		case "adiantamento":
-			totalSpentAdiantamento += expense.Amount
-		case "renda_extra":
-			totalSpentRendaExtra += expense.Amount
+		for _, split := range expenses.PaymentSplitsOrLegacy(expense) {
+			switch normalizeMoneySource(split.PaymentSource) {
+			case "salario":
+				totalSpentSalary += split.Amount
+			case "adiantamento":
+				totalSpentAdiantamento += split.Amount
+			case "renda_extra":
+				totalSpentRendaExtra += split.Amount
+			}
 		}
 	}
 
@@ -238,9 +240,7 @@ func listExpenses(userID uint, args map[string]any) ([]expenses.Expense, error) 
 	if year, err := intArg(args, "year"); err == nil && year > 0 {
 		query = query.Where("year = ?", year)
 	}
-	if paymentSource, _ := stringArg(args, "payment_source"); paymentSource != "" {
-		query = query.Where("LOWER(payment_source) IN ?", paymentSourceVariants(paymentSource))
-	}
+	paymentSource, _ := stringArg(args, "payment_source")
 	if categoryName, _ := stringArg(args, "category_name"); categoryName != "" {
 		var category categories.Category
 		if err := database.DB.Where("user_id = ? AND LOWER(name) = ?", userID, strings.ToLower(categoryName)).First(&category).Error; err != nil {
@@ -255,10 +255,13 @@ func listExpenses(userID uint, args map[string]any) ([]expenses.Expense, error) 
 	}
 
 	var expensesList []expenses.Expense
-	if err := query.Order("date desc").Limit(limit).Find(&expensesList).Error; err != nil {
+	if err := query.Preload("PaymentSplits").Order("date desc").Find(&expensesList).Error; err != nil {
 		return nil, err
 	}
-
+	expensesList = filterExpensesByPaymentSource(expensesList, paymentSource)
+	if len(expensesList) > limit {
+		expensesList = expensesList[:limit]
+	}
 	return expensesList, nil
 }
 

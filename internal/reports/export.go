@@ -219,7 +219,7 @@ func loadExportDataset(userID uint, options exportOptions) (exportDataset, error
 			Order("month asc, year asc, id asc").Find(&dataset.Incomes).Error; err != nil {
 			return dataset, err
 		}
-		if err := database.DB.Where("user_id = ? AND month = ? AND year = ?", userID, options.Month, options.Year).
+		if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, options.Month, options.Year).
 			Order("date asc, id asc").Find(&dataset.Expenses).Error; err != nil {
 			return dataset, err
 		}
@@ -240,7 +240,7 @@ func loadExportDataset(userID uint, options exportOptions) (exportDataset, error
 			return dataset, err
 		}
 		var comparedExpenses []expenses.Expense
-		if err := database.DB.Where("user_id = ? AND month = ? AND year = ?", userID, options.CompareMonth, options.CompareYear).
+		if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, options.CompareMonth, options.CompareYear).
 			Find(&comparedExpenses).Error; err != nil {
 			return dataset, err
 		}
@@ -250,7 +250,7 @@ func loadExportDataset(userID uint, options exportOptions) (exportDataset, error
 
 	if options.ReportType == exportTypeInstallmentCommitments || options.ReportType == exportTypeFullReport {
 		var installments []expenses.Expense
-		if err := database.DB.Where("user_id = ? AND type = ?", userID, "Parcelada").
+		if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND type = ?", userID, "Parcelada").
 			Order("year asc, month asc, current_install asc, id asc").Find(&installments).Error; err != nil {
 			return dataset, err
 		}
@@ -276,13 +276,15 @@ func buildMonthlyExportSummary(incomeItems []incomes.Income, expenseItems []expe
 	}
 	for _, expense := range expenseItems {
 		result.TotalExpense += expense.Amount
-		switch normalizeMoneySource(expense.PaymentSource) {
-		case "salario":
-			result.SpentSalary += expense.Amount
-		case "adiantamento":
-			result.SpentAdvance += expense.Amount
-		case "renda_extra":
-			result.SpentExtraIncome += expense.Amount
+		for _, split := range expenses.PaymentSplitsOrLegacy(expense) {
+			switch normalizeMoneySource(split.PaymentSource) {
+			case "salario":
+				result.SpentSalary += split.Amount
+			case "adiantamento":
+				result.SpentAdvance += split.Amount
+			case "renda_extra":
+				result.SpentExtraIncome += split.Amount
+			}
 		}
 	}
 	result.Balance = result.TotalIncome - result.TotalExpense
@@ -370,11 +372,23 @@ func writeExpensesCSV(writer *csv.Writer, items []expenses.Expense, categoryName
 		if category == "" {
 			category = "Sem categoria"
 		}
-		if err := writer.Write([]string{expense.Date.Format("2006-01-02"), safeCSVText(expense.Description), safeCSVText(category), safeCSVText(paymentSourceLabel(expense.PaymentSource)), safeCSVText(expenseTypeLabel(expense.Type)), installment, formatDecimal(expense.Amount), safeCSVText(expense.Notes)}); err != nil {
+		if err := writer.Write([]string{expense.Date.Format("2006-01-02"), safeCSVText(expense.Description), safeCSVText(category), safeCSVText(paymentSplitsLabel(expense)), safeCSVText(expenseTypeLabel(expense.Type)), installment, formatDecimal(expense.Amount), safeCSVText(expense.Notes)}); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func paymentSplitsLabel(expense expenses.Expense) string {
+	splits := expenses.PaymentSplitsOrLegacy(expense)
+	labels := make([]string, 0, len(splits))
+	for _, split := range splits {
+		labels = append(labels, fmt.Sprintf("%s: %s", paymentSourceLabel(split.PaymentSource), formatDecimal(split.Amount)))
+	}
+	if len(labels) == 0 {
+		return paymentSourceLabel(expense.PaymentSource)
+	}
+	return strings.Join(labels, " | ")
 }
 
 func writeIncomesCSV(writer *csv.Writer, items []incomes.Income) error {
@@ -538,7 +552,7 @@ func writeFullReportCSV(writer *csv.Writer, dataset exportDataset) error {
 		if expenseTypeLabel(expense.Type) == "Parcelada" {
 			installment = formatInstallment(expense.CurrentInstall, expense.Installments)
 		}
-		expenseRows = append(expenseRows, []string{expense.Date.Format("2006-01-02"), safeCSVText(expense.Description), safeCSVText(category), safeCSVText(paymentSourceLabel(expense.PaymentSource)), safeCSVText(expenseTypeLabel(expense.Type)), installment, formatDecimal(expense.Amount), safeCSVText(expense.Notes)})
+		expenseRows = append(expenseRows, []string{expense.Date.Format("2006-01-02"), safeCSVText(expense.Description), safeCSVText(category), safeCSVText(paymentSplitsLabel(expense)), safeCSVText(expenseTypeLabel(expense.Type)), installment, formatDecimal(expense.Amount), safeCSVText(expense.Notes)})
 	}
 	if err := writeFullReportSection(writer, "DESPESAS", []string{"Data", "Descricao", "Categoria", "Fonte de Pagamento", "Tipo", "Parcela", "Valor", "Observacoes"}, expenseRows); err != nil {
 		return err

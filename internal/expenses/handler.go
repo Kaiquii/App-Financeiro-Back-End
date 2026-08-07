@@ -2,6 +2,7 @@ package expenses
 
 import (
 	"Sobra_Ai_Back-end/internal/database"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -35,6 +36,24 @@ func buildSeriesID(userID uint) string {
 func normalizeExpenseNotes(notes string) (string, bool) {
 	normalizedNotes := strings.TrimSpace(notes)
 	return normalizedNotes, len([]rune(normalizedNotes)) <= maxExpenseNotesLength
+}
+
+func createPaymentSplits(tx *gorm.DB, expenseID uint, inputs []PaymentSplitInput) error {
+	splits := make([]PaymentSplit, 0, len(inputs))
+	for _, input := range inputs {
+		splits = append(splits, PaymentSplit{ExpenseID: expenseID, PaymentSource: input.PaymentSource, Amount: input.Amount})
+	}
+	if len(splits) == 0 {
+		return nil
+	}
+	return tx.Create(&splits).Error
+}
+
+func replacePaymentSplits(tx *gorm.DB, expenseID uint, inputs []PaymentSplitInput) error {
+	if err := tx.Where("expense_id = ?", expenseID).Delete(&PaymentSplit{}).Error; err != nil {
+		return err
+	}
+	return createPaymentSplits(tx, expenseID, inputs)
 }
 
 func RegisterRoutes(rg *gin.RouterGroup) {
@@ -104,29 +123,41 @@ func createExpense(c *gin.Context) {
 		seriesID = buildSeriesID(userID)
 	}
 
-	for i := 1; i <= loopCount; i++ {
-		installmentDate := req.Date.AddDate(0, i-1, 0)
+	splits, legacySource, err := ValidatePaymentSplits(req.Amount, req.PaymentSource, req.PaymentSplits)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-		newExpense := Expense{
-			UserID:         userID,
-			SeriesID:       seriesID,
-			Amount:         req.Amount,
-			Description:    req.Description,
-			Notes:          notes,
-			CategoryID:     req.CategoryID,
-			PaymentSource:  req.PaymentSource,
-			Date:           installmentDate,
-			Month:          int(installmentDate.Month()),
-			Year:           installmentDate.Year(),
-			Type:           expenseType,
-			Installments:   installments,
-			CurrentInstall: i,
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		for i := 1; i <= loopCount; i++ {
+			installmentDate := req.Date.AddDate(0, i-1, 0)
+			newExpense := Expense{
+				UserID:         userID,
+				SeriesID:       seriesID,
+				Amount:         req.Amount,
+				Description:    req.Description,
+				Notes:          notes,
+				CategoryID:     req.CategoryID,
+				PaymentSource:  legacySource,
+				Date:           installmentDate,
+				Month:          int(installmentDate.Month()),
+				Year:           installmentDate.Year(),
+				Type:           expenseType,
+				Installments:   installments,
+				CurrentInstall: i,
+			}
+			if err := tx.Create(&newExpense).Error; err != nil {
+				return fmt.Errorf("erro ao salvar parcela %d: %w", i, err)
+			}
+			if err := createPaymentSplits(tx, newExpense.ID, splits); err != nil {
+				return err
+			}
 		}
-
-		if err := database.DB.Create(&newExpense).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar parcela " + strconv.Itoa(i)})
-			return
-		}
+		return nil
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar despesa(s)"})
+		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Despesa(s) cadastrada(s) com sucesso!"})
@@ -172,10 +203,11 @@ func getExpenses(c *gin.Context) {
 		query = query.Where("is_paid = ?", isPaid)
 	}
 
-	if err := query.Find(&expensesList).Error; err != nil {
+	if err := query.Preload("PaymentSplits").Find(&expensesList).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar despesas"})
 		return
 	}
+	HydrateExpensesPaymentSplits(expensesList)
 
 	c.JSON(http.StatusOK, gin.H{"total": len(expensesList), "expenses": expensesList})
 }
@@ -203,10 +235,11 @@ func getExpenseByID(c *gin.Context) {
 	id := c.Param("id")
 	var expense Expense
 
-	if err := database.DB.Where("id = ? AND user_id = ?", id, userID).First(&expense).Error; err != nil {
+	if err := database.DB.Preload("PaymentSplits").Where("id = ? AND user_id = ?", id, userID).First(&expense).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Despesa não encontrada ou não pertence a você"})
 		return
 	}
+	HydratePaymentSplits(&expense)
 
 	c.JSON(http.StatusOK, expense)
 }
@@ -225,7 +258,7 @@ func updatePaymentStatus(c *gin.Context) {
 	}
 
 	var expense Expense
-	if err := database.DB.Where("id = ? AND user_id = ?", c.Param("id"), userID).First(&expense).Error; err != nil {
+	if err := database.DB.Preload("PaymentSplits").Where("id = ? AND user_id = ?", c.Param("id"), userID).First(&expense).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Despesa nao encontrada ou nao pertence a voce"})
 		return
 	}
@@ -245,6 +278,7 @@ func updatePaymentStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar status de pagamento"})
 		return
 	}
+	HydratePaymentSplits(&expense)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Status de pagamento atualizado com sucesso!",
@@ -262,7 +296,7 @@ func updateExpense(c *gin.Context) {
 	id := c.Param("id")
 	var expense Expense
 
-	if err := database.DB.Where("id = ? AND user_id = ?", id, userID).First(&expense).Error; err != nil {
+	if err := database.DB.Preload("PaymentSplits").Where("id = ? AND user_id = ?", id, userID).First(&expense).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Despesa não encontrada ou não pertence a você"})
 		return
 	}
@@ -274,6 +308,22 @@ func updateExpense(c *gin.Context) {
 	if err := c.ShouldBindJSON(&updateData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos: " + err.Error()})
 		return
+	}
+
+	var requestedSplits []PaymentSplitInput
+	hasPaymentSplits := false
+	if value, exists := updateData["payment_splits"]; exists {
+		hasPaymentSplits = true
+		encoded, err := json.Marshal(value)
+		if err != nil || json.Unmarshal(encoded, &requestedSplits) != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Divisões de pagamento inválidas"})
+			return
+		}
+		delete(updateData, "payment_splits")
+		if _, sendsLegacySource := updateData["payment_source"]; sendsLegacySource {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Envie payment_source ou payment_splits, não ambos"})
+			return
+		}
 	}
 
 	updateFuture := false
@@ -338,29 +388,77 @@ func updateExpense(c *gin.Context) {
 		updateData["installments"] = 0
 	}
 
-	if err := database.DB.Model(&expense).Updates(updateData).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar despesa"})
-		return
-	}
-
-	if updateFuture {
-		delete(updateData, "date")
-		delete(updateData, "month")
-		delete(updateData, "year")
-		delete(updateData, "id")
-		delete(updateData, "user_id")
-		delete(updateData, "series_id")
-		delete(updateData, "current_installment")
-
-		err := applySeriesScope(database.DB.Model(&Expense{}), expense).
-			Where("user_id = ? AND (year > ? OR (year = ? AND month > ?))",
-				userID, originalYear, originalYear, originalMonth).
-			Updates(updateData).Error
-
+	var normalizedSplits []PaymentSplitInput
+	if hasPaymentSplits {
+		amount := expense.Amount
+		if value, exists := updateData["amount"]; exists {
+			parsed, ok := value.(float64)
+			if !ok {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Valor da despesa inválido"})
+				return
+			}
+			amount = parsed
+		}
+		var err error
+		normalizedSplits, _, err = ValidatePaymentSplits(amount, "", requestedSplits)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar despesas futuras"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+		// Keep the legacy field meaningful for old app versions.
+		updateData["payment_source"] = normalizedSplits[0].PaymentSource
+	}
+
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&expense).Updates(updateData).Error; err != nil {
+			return err
+		}
+		if hasPaymentSplits {
+			if err := replacePaymentSplits(tx, expense.ID, normalizedSplits); err != nil {
+				return err
+			}
+		}
+
+		if !updateFuture {
+			return nil
+		}
+		futureData := make(map[string]interface{}, len(updateData))
+		for key, value := range updateData {
+			futureData[key] = value
+		}
+		delete(futureData, "date")
+		delete(futureData, "month")
+		delete(futureData, "year")
+		delete(futureData, "id")
+		delete(futureData, "user_id")
+		delete(futureData, "series_id")
+		delete(futureData, "current_installment")
+
+		var futureExpenses []Expense
+		if err := applySeriesScope(tx, expense).
+			Where("user_id = ? AND (year > ? OR (year = ? AND month > ?))", userID, originalYear, originalYear, originalMonth).
+			Find(&futureExpenses).Error; err != nil {
+			return err
+		}
+		if len(futureExpenses) == 0 {
+			return nil
+		}
+		if err := applySeriesScope(tx.Model(&Expense{}), expense).
+			Where("user_id = ? AND (year > ? OR (year = ? AND month > ?))", userID, originalYear, originalYear, originalMonth).
+			Updates(futureData).Error; err != nil {
+			return err
+		}
+		if hasPaymentSplits {
+			for _, future := range futureExpenses {
+				if err := replacePaymentSplits(tx, future.ID, normalizedSplits); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar despesa"})
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Despesa atualizada com sucesso!"})

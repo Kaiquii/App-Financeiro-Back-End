@@ -76,7 +76,7 @@ func getMonthlySummary(c *gin.Context) {
 	}
 
 	var expensesList []expenses.Expense
-	if err := database.DB.Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&expensesList).Error; err != nil {
+	if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&expensesList).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar despesas"})
 		return
 	}
@@ -108,13 +108,15 @@ func getMonthlySummary(c *gin.Context) {
 	for _, expense := range expensesList {
 		totalExpense += expense.Amount
 
-		switch normalizeMoneySource(expense.PaymentSource) {
-		case "salario":
-			totalSpentSalary += expense.Amount
-		case "adiantamento":
-			totalSpentAdiantamento += expense.Amount
-		case "renda_extra":
-			totalSpentRendaExtra += expense.Amount
+		for _, split := range expenses.PaymentSplitsOrLegacy(expense) {
+			switch normalizeMoneySource(split.PaymentSource) {
+			case "salario":
+				totalSpentSalary += split.Amount
+			case "adiantamento":
+				totalSpentAdiantamento += split.Amount
+			case "renda_extra":
+				totalSpentRendaExtra += split.Amount
+			}
 		}
 	}
 
@@ -206,7 +208,7 @@ func getChartData(c *gin.Context) {
 	database.DB.Where("user_id = ? AND year = ?", userID, year).Find(&incomesList)
 
 	var expensesList []expenses.Expense
-	database.DB.Where("user_id = ? AND year = ?", userID, year).Find(&expensesList)
+	database.DB.Preload("PaymentSplits").Where("user_id = ? AND year = ?", userID, year).Find(&expensesList)
 
 	monthlyData := make(map[int]ChartResult)
 
@@ -317,13 +319,13 @@ func getMonthComparison(c *gin.Context) {
 	}
 
 	var currentExpenses []expenses.Expense
-	if err := database.DB.Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&currentExpenses).Error; err != nil {
+	if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&currentExpenses).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar despesas do mes atual"})
 		return
 	}
 
 	var comparedExpenses []expenses.Expense
-	if err := database.DB.Where("user_id = ? AND month = ? AND year = ?", userID, comparedMonth, comparedYear).Find(&comparedExpenses).Error; err != nil {
+	if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, comparedMonth, comparedYear).Find(&comparedExpenses).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar despesas do mes comparado"})
 		return
 	}
@@ -454,23 +456,27 @@ func buildPaymentSourceComparisons(currentExpenses []expenses.Expense, previousE
 	totalsBySource := make(map[string]*comparisonTotals)
 
 	for _, expense := range currentExpenses {
-		source := paymentSourceLabel(expense.PaymentSource)
-		totals := totalsBySource[source]
-		if totals == nil {
-			totals = &comparisonTotals{}
-			totalsBySource[source] = totals
+		for _, split := range expenses.PaymentSplitsOrLegacy(expense) {
+			source := paymentSourceLabel(split.PaymentSource)
+			totals := totalsBySource[source]
+			if totals == nil {
+				totals = &comparisonTotals{}
+				totalsBySource[source] = totals
+			}
+			totals.current += split.Amount
 		}
-		totals.current += expense.Amount
 	}
 
 	for _, expense := range previousExpenses {
-		source := paymentSourceLabel(expense.PaymentSource)
-		totals := totalsBySource[source]
-		if totals == nil {
-			totals = &comparisonTotals{}
-			totalsBySource[source] = totals
+		for _, split := range expenses.PaymentSplitsOrLegacy(expense) {
+			source := paymentSourceLabel(split.PaymentSource)
+			totals := totalsBySource[source]
+			if totals == nil {
+				totals = &comparisonTotals{}
+				totalsBySource[source] = totals
+			}
+			totals.previous += split.Amount
 		}
-		totals.previous += expense.Amount
 	}
 
 	comparisons := make([]MonthComparisonPaymentSource, 0, len(totalsBySource))
@@ -747,7 +753,7 @@ func getInstallmentCommitments(c *gin.Context) {
 	includeCurrentMonthAsPaid := c.Query("include_current_month_as_paid") == "true"
 
 	var installments []expenses.Expense
-	if err := database.DB.
+	if err := database.DB.Preload("PaymentSplits").
 		Where("user_id = ? AND type = ?", userID, "Parcelada").
 		Order("year asc, month asc, current_install asc, id asc").
 		Find(&installments).Error; err != nil {
@@ -931,7 +937,7 @@ func buildPurchaseSummary(seriesKey string, installments []expenses.Expense, cat
 		Description:           first.Description,
 		CategoryID:            first.CategoryID,
 		CategoryName:          categoryNames[first.CategoryID],
-		PaymentSource:         first.PaymentSource,
+		PaymentSource:         paymentSplitsSummaryLabel(first),
 		InstallmentAmount:     roundMoney(installmentAmount),
 		OriginalTotal:         roundMoney(originalTotal),
 		PaidTotal:             roundMoney(paidTotal),
@@ -954,13 +960,25 @@ func installmentItemSummary(installment expenses.Expense, categoryNames map[uint
 		Description:        installment.Description,
 		CategoryID:         installment.CategoryID,
 		CategoryName:       categoryNames[installment.CategoryID],
-		PaymentSource:      installment.PaymentSource,
+		PaymentSource:      paymentSplitsSummaryLabel(installment),
 		Amount:             roundMoney(installment.Amount),
 		Month:              installment.Month,
 		Year:               installment.Year,
 		CurrentInstallment: installment.CurrentInstall,
 		TotalInstallments:  installment.Installments,
 	}
+}
+
+func paymentSplitsSummaryLabel(expense expenses.Expense) string {
+	splits := expenses.PaymentSplitsOrLegacy(expense)
+	if len(splits) == 0 {
+		return paymentSourceLabel(expense.PaymentSource)
+	}
+	labels := make([]string, 0, len(splits))
+	for _, split := range splits {
+		labels = append(labels, fmt.Sprintf("%s: %.2f", paymentSourceLabel(split.PaymentSource), roundMoney(split.Amount)))
+	}
+	return strings.Join(labels, " | ")
 }
 
 func sortInstallments(installments []expenses.Expense) {

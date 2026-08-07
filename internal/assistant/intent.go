@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -343,14 +344,12 @@ func getCategoryExpenseSummary(userID uint, month int, year int, categoryName st
 	}
 
 	query := database.DB.Where("user_id = ? AND month = ? AND year = ? AND category_id = ?", userID, month, year, category.ID)
-	if strings.TrimSpace(paymentSource) != "" {
-		query = query.Where("LOWER(payment_source) IN ?", paymentSourceVariants(paymentSource))
-	}
 
 	var expensesList []expenses.Expense
-	if err := query.Order("date desc").Find(&expensesList).Error; err != nil {
+	if err := query.Preload("PaymentSplits").Order("date desc").Find(&expensesList).Error; err != nil {
 		return nil, err
 	}
+	expensesList = filterExpensesByPaymentSource(expensesList, paymentSource)
 
 	total := 0.0
 	for _, expense := range expensesList {
@@ -381,16 +380,16 @@ func getCategoryExpenseSummary(userID uint, month int, year int, categoryName st
 }
 
 func getMonthlyExpenseTotal(userID uint, month int, year int, paymentSource string) (float64, error) {
-	query := database.DB.Table("expenses").
-		Where("user_id = ? AND month = ? AND year = ?", userID, month, year)
-
-	if strings.TrimSpace(paymentSource) != "" {
-		query = query.Where("LOWER(payment_source) IN ?", paymentSourceVariants(paymentSource))
+	var items []expenses.Expense
+	if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&items).Error; err != nil {
+		return 0, err
 	}
-
+	items = filterExpensesByPaymentSource(items, paymentSource)
 	var total float64
-	err := query.Select("COALESCE(sum(amount), 0)").Scan(&total).Error
-	return total, err
+	for _, item := range items {
+		total += item.Amount
+	}
+	return total, nil
 }
 
 func listUserCategories(userID uint) (map[string]any, error) {
@@ -418,19 +417,24 @@ func getAllCategoryExpenseSummary(userID uint, month int, year int, paymentSourc
 		TotalAmount  float64
 	}
 
-	query := database.DB.Table("expenses").
-		Select("expenses.category_id, categories.name as category_name, sum(expenses.amount) as total_amount").
-		Joins("left join categories on categories.id = expenses.category_id").
-		Where("expenses.user_id = ? AND expenses.month = ? AND expenses.year = ?", userID, month, year)
-
-	if strings.TrimSpace(paymentSource) != "" {
-		query = query.Where("LOWER(expenses.payment_source) IN ?", paymentSourceVariants(paymentSource))
-	}
-
-	var rows []row
-	if err := query.Group("expenses.category_id, categories.name").Order("total_amount desc").Scan(&rows).Error; err != nil {
+	var expenseItems []expenses.Expense
+	if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&expenseItems).Error; err != nil {
 		return nil, err
 	}
+	expenseItems = filterExpensesByPaymentSource(expenseItems, paymentSource)
+	totals := make(map[uint]float64)
+	for _, expense := range expenseItems {
+		totals[expense.CategoryID] += expense.Amount
+	}
+	rows := make([]row, 0, len(totals))
+	for categoryID, totalAmount := range totals {
+		var category categories.Category
+		if err := database.DB.Where("id = ? AND user_id = ?", categoryID, userID).First(&category).Error; err != nil {
+			continue
+		}
+		rows = append(rows, row{CategoryID: categoryID, CategoryName: category.Name, TotalAmount: totalAmount})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].TotalAmount > rows[j].TotalAmount })
 
 	items := make([]map[string]any, 0, len(rows))
 	total := 0.0

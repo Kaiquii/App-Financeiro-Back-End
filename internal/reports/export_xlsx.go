@@ -331,7 +331,7 @@ func xlsxExpensesSection(dataset exportDataset) xlsxSection {
 		}
 		rows = append(rows, []xlsxCell{
 			{expense.Date, xlsxDate}, {expense.Description, xlsxText}, {category, xlsxText},
-			{paymentSourceLabel(expense.PaymentSource), xlsxText}, {expenseTypeLabel(expense.Type), xlsxText},
+			{paymentSplitsLabel(expense), xlsxText}, {expenseTypeLabel(expense.Type), xlsxText},
 			{installment, xlsxText}, {roundMoney(expense.Amount), xlsxCurrency}, {expense.Notes, xlsxWrappedText},
 		})
 	}
