@@ -58,13 +58,13 @@ func getMonthlySummary(c *gin.Context) {
 	}
 
 	month, err := strconv.Atoi(monthStr)
-	if err != nil {
+	if err != nil || month < 1 || month > 12 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Mês inválido"})
 		return
 	}
 
 	year, err := strconv.Atoi(yearStr)
-	if err != nil {
+	if err != nil || year < 2000 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Ano inválido"})
 		return
 	}
@@ -159,9 +159,13 @@ func getCategorySummary(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "O ano é obrigatório"})
 		return
 	}
-	year, _ := strconv.Atoi(yearStr)
+	year, err := strconv.Atoi(yearStr)
+	if err != nil || year < 2000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ano inválido"})
+		return
+	}
 
-	var results []CategoryResult
+	results := make([]CategoryResult, 0)
 
 	query := database.DB.Table("expenses").
 		Select("expenses.category_id, categories.name as category_name, sum(expenses.amount) as total_amount").
@@ -169,11 +173,21 @@ func getCategorySummary(c *gin.Context) {
 		Where("expenses.user_id = ? AND expenses.year = ?", userID, year)
 
 	if monthStr != "" {
-		month, _ := strconv.Atoi(monthStr)
+		month, err := strconv.Atoi(monthStr)
+		if err != nil || month < 1 || month > 12 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Mês inválido"})
+			return
+		}
 		query = query.Where("expenses.month = ?", month)
 	}
 
-	query.Group("expenses.category_id, categories.name").Scan(&results)
+	if err := query.Group("expenses.category_id, categories.name").Scan(&results).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar resumo por categoria"})
+		return
+	}
+	if results == nil {
+		results = make([]CategoryResult, 0)
+	}
 
 	var totalGeral float64
 	for _, r := range results {
@@ -202,13 +216,32 @@ func getChartData(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "O ano é obrigatório. Ex: ?year=2026"})
 		return
 	}
-	year, _ := strconv.Atoi(yearStr)
+	year, err := strconv.Atoi(yearStr)
+	if err != nil || year < 2000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ano inválido"})
+		return
+	}
 
 	var incomesList []incomes.Income
-	database.DB.Where("user_id = ? AND year = ?", userID, year).Find(&incomesList)
+	if err := database.DB.Where("user_id = ? AND year = ?", userID, year).Find(&incomesList).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar rendas do ano"})
+		return
+	}
 
 	var expensesList []expenses.Expense
-	database.DB.Preload("PaymentSplits").Where("user_id = ? AND year = ?", userID, year).Find(&expensesList)
+	if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND year = ?", userID, year).Find(&expensesList).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar despesas do ano"})
+		return
+	}
+
+	results := buildChartResults(incomesList, expensesList)
+	c.JSON(http.StatusOK, results)
+}
+
+func buildChartResults(incomesList []incomes.Income, expensesList []expenses.Expense) []ChartResult {
+	if len(incomesList) == 0 && len(expensesList) == 0 {
+		return []ChartResult{}
+	}
 
 	monthlyData := make(map[int]ChartResult)
 
@@ -226,7 +259,7 @@ func getChartData(c *gin.Context) {
 		monthlyData[exp.Month] = data
 	}
 
-	var results []ChartResult
+	results := make([]ChartResult, 0, 12)
 	for i := 1; i <= 12; i++ {
 		if data, ok := monthlyData[i]; ok {
 			results = append(results, data)
@@ -235,7 +268,7 @@ func getChartData(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, results)
+	return results
 }
 
 func getYearlySummary(c *gin.Context) {
@@ -251,17 +284,27 @@ func getYearlySummary(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "O ano é obrigatório. Ex: ?year=2026"})
 		return
 	}
-	year, _ := strconv.Atoi(yearStr)
+	year, err := strconv.Atoi(yearStr)
+	if err != nil || year < 2000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ano inválido"})
+		return
+	}
 
 	var totalIncome float64
-	database.DB.Table("incomes").
+	if err := database.DB.Table("incomes").
 		Where("user_id = ? AND year = ?", userID, year).
-		Select("COALESCE(sum(amount), 0)").Scan(&totalIncome)
+		Select("COALESCE(sum(amount), 0)").Scan(&totalIncome).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar total de rendas do ano"})
+		return
+	}
 
 	var totalExpense float64
-	database.DB.Table("expenses").
+	if err := database.DB.Table("expenses").
 		Where("user_id = ? AND year = ?", userID, year).
-		Select("COALESCE(sum(amount), 0)").Scan(&totalExpense)
+		Select("COALESCE(sum(amount), 0)").Scan(&totalExpense).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar total de despesas do ano"})
+		return
+	}
 
 	economiaTotal := totalIncome - totalExpense
 	mediaMensal := totalExpense / 12

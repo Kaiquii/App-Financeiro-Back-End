@@ -3,6 +3,8 @@ package reports
 import (
 	"Sobra_Ai_Back-end/internal/expenses"
 	"Sobra_Ai_Back-end/internal/incomes"
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -71,5 +73,35 @@ func TestPreviousMonthYearHandlesJanuary(t *testing.T) {
 	month, year := previousMonthYear(1, 2026)
 	if month != 12 || year != 2025 {
 		t.Fatalf("expected 12/2025, got %d/%d", month, year)
+	}
+}
+
+func TestEmptyReportCollectionsUseEmptyJSONArrays(t *testing.T) {
+	chartData, err := json.Marshal(buildChartResults(nil, nil))
+	if err != nil {
+		t.Fatalf("failed to marshal empty chart: %v", err)
+	}
+	if string(chartData) != "[]" {
+		t.Fatalf("expected empty chart JSON array, got %s", chartData)
+	}
+
+	categoryData, err := json.Marshal(make([]CategoryResult, 0))
+	if err != nil {
+		t.Fatalf("failed to marshal empty categories: %v", err)
+	}
+	if string(categoryData) != "[]" {
+		t.Fatalf("expected empty categories JSON array, got %s", categoryData)
+	}
+
+	comparison := buildMonthComparisonResponse(nil, nil, nil, nil, map[uint]string{}, 8, 2026, 7, 2026)
+	if comparison.Summary.CurrentIncome != 0 || comparison.Summary.CurrentExpense != 0 || comparison.Summary.CurrentBalance != 0 {
+		t.Fatalf("expected zero comparison summary, got %+v", comparison.Summary)
+	}
+	comparisonData, err := json.Marshal(comparison)
+	if err != nil {
+		t.Fatalf("failed to marshal empty comparison: %v", err)
+	}
+	if strings.Contains(string(comparisonData), ":null") {
+		t.Fatalf("expected empty comparison collections, got %s", comparisonData)
 	}
 }
