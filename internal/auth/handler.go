@@ -51,6 +51,8 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 		adminGroup.DELETE("/users/:id", deleteUserByAdmin)
 		adminGroup.PATCH("/users/:id/revoke-access", revokeUserAccessByAdmin)
 		adminGroup.PATCH("/users/:id/restore-access", restoreUserAccessByAdmin)
+		adminGroup.PATCH("/users/:id/promote-premium", promoteUserToPremiumByAdmin)
+		adminGroup.PATCH("/users/:id/revoke-premium", revokeUserPremiumByAdmin)
 	}
 }
 
@@ -432,8 +434,8 @@ func parseUserFilters(values url.Values) (userFilters, error) {
 		Search: strings.TrimSpace(values.Get("search")),
 		Role:   strings.ToLower(strings.TrimSpace(values.Get("role"))),
 	}
-	if filters.Role != "" && filters.Role != "user" && filters.Role != "admin" {
-		return userFilters{}, fmt.Errorf("role deve ser user ou admin")
+	if filters.Role != "" && filters.Role != "user" && filters.Role != "premium" && filters.Role != "admin" {
+		return userFilters{}, fmt.Errorf("role deve ser user, premium ou admin")
 	}
 
 	status := strings.ToLower(strings.TrimSpace(values.Get("status")))
@@ -597,6 +599,70 @@ func restoreUserAccessByAdmin(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Acesso do usuario liberado com sucesso",
 		"user":    accessUserResponse(user.ID, user.Name, user.Email, user.Role, false, nil),
+	})
+}
+
+func promoteUserToPremiumByAdmin(c *gin.Context) {
+	user, ok := findManagedUser(c)
+	if !ok {
+		return
+	}
+
+	if user.Role == "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Nao e permitido alterar o cargo de outro administrador"})
+		return
+	}
+
+	if user.Role == "premium" {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Usuario ja possui o cargo premium",
+			"user":    accessUserResponse(user.ID, user.Name, user.Email, user.Role, user.AccessBlocked, user.AccessBlockedAt),
+		})
+		return
+	}
+
+	if err := database.DB.Model(&user).Update("role", "premium").Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao promover usuario para premium"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Usuario promovido para premium com sucesso",
+		"user":    accessUserResponse(user.ID, user.Name, user.Email, "premium", user.AccessBlocked, user.AccessBlockedAt),
+	})
+}
+
+func revokeUserPremiumByAdmin(c *gin.Context) {
+	user, ok := findManagedUser(c)
+	if !ok {
+		return
+	}
+
+	if user.Role == "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Nao e permitido alterar o cargo de outro administrador"})
+		return
+	}
+
+	if user.Role == "user" {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Usuario ja possui o cargo comum",
+			"user":    accessUserResponse(user.ID, user.Name, user.Email, user.Role, user.AccessBlocked, user.AccessBlockedAt),
+		})
+		return
+	}
+	if user.Role != "premium" {
+		c.JSON(http.StatusConflict, gin.H{"error": "O cargo atual do usuario nao pode ser removido por esta rota"})
+		return
+	}
+
+	if err := database.DB.Model(&user).Update("role", "user").Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao remover cargo premium do usuario"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Cargo premium removido com sucesso",
+		"user":    accessUserResponse(user.ID, user.Name, user.Email, "user", user.AccessBlocked, user.AccessBlockedAt),
 	})
 }
 

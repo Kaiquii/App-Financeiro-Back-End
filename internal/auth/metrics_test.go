@@ -35,3 +35,31 @@ func TestRegisterRoutesIncludesAdminUserMetrics(t *testing.T) {
 
 	t.Fatal("GET /api/admin/users/metrics was not registered")
 }
+
+func TestRegisterRoutesIncludesPremiumPromotion(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	RegisterRoutes(router.Group("/api"))
+
+	for _, route := range router.Routes() {
+		if route.Method == http.MethodPatch && route.Path == "/api/admin/users/:id/promote-premium" {
+			return
+		}
+	}
+
+	t.Fatal("PATCH /api/admin/users/:id/promote-premium was not registered")
+}
+
+func TestRegisterRoutesIncludesPremiumRevocation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	RegisterRoutes(router.Group("/api"))
+
+	for _, route := range router.Routes() {
+		if route.Method == http.MethodPatch && route.Path == "/api/admin/users/:id/revoke-premium" {
+			return
+		}
+	}
+
+	t.Fatal("PATCH /api/admin/users/:id/revoke-premium was not registered")
+}

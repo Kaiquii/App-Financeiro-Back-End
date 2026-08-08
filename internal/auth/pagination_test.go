@@ -39,6 +39,16 @@ func TestParseUserFilters(t *testing.T) {
 	}
 }
 
+func TestParseUserFiltersAcceptsPremiumRole(t *testing.T) {
+	filters, err := parseUserFilters(url.Values{"role": {"premium"}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if filters.Role != "premium" {
+		t.Fatalf("expected premium role filter, got %q", filters.Role)
+	}
+}
+
 func TestGetUsersRejectsInvalidFiltersBeforeQuery(t *testing.T) {
 	tests := []string{
 		"/api/auth/users?role=manager",
