@@ -119,7 +119,9 @@ func ConfigureBotProtectionFromEnv() error {
 func requireBotProtection(c *gin.Context, endpoint string, email string, ipAddress string, request BotProtectionRequest) bool {
 	decision := configuredBotProtection.authorize(c.Request.Context(), endpoint, email, ipAddress, request)
 	if decision.allowed {
-		if configuredBotProtection.mode == botProtectionMonitor && decision.reason != "verified" {
+		if configuredBotProtection.mode != botProtectionDisabled && decision.reason == "verified" {
+			log.Printf("Protecao anti-bot validada endpoint=%s provider=%s email_hash=%s ip=%s", endpoint, request.ProtectionProvider, emailFingerprint(email), ipAddress)
+		} else if configuredBotProtection.mode == botProtectionMonitor {
 			log.Printf("Protecao anti-bot em monitoramento endpoint=%s email_hash=%s ip=%s motivo=%s", endpoint, emailFingerprint(email), ipAddress, decision.reason)
 		}
 		return true
@@ -151,7 +153,10 @@ func (p botProtection) authorize(ctx context.Context, endpoint string, email str
 	}
 
 	if err := validator.validate(ctx, token, endpoint, email, ipAddress); err != nil {
-		return p.handleFailure("invalid_token", errors.Is(err, errProtectionVerifierUnavailable))
+		if errors.Is(err, errProtectionVerifierUnavailable) {
+			return p.handleFailure("verifier_unavailable", true)
+		}
+		return p.handleFailure("invalid_token", false)
 	}
 
 	return protectionDecision{allowed: true, reason: "verified"}
