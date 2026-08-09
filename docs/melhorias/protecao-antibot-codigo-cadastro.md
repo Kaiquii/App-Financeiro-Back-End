@@ -38,10 +38,10 @@ O backend e a unica autoridade para decidir se o e-mail sera enviado. Nenhuma va
 
 Antes de chamar um endpoint de envio de codigo, o app Android deve pedir um token de integridade ao Google Play e enviar esse token junto com o e-mail.
 
-O token deve ser vinculado a requisicao por um hash, por exemplo:
+O token deve ser vinculado a requisicao por um hash. O contrato implementado pelo backend e:
 
 ```text
-SHA-256(metodo + ":" + caminho_do_endpoint + ":" + email_normalizado)
+SHA-256("POST\\n" + caminho_do_endpoint + "\\n" + email_normalizado)
 ```
 
 O backend recalcula o hash e confere se ele corresponde ao valor devolvido pelo Google. Assim, um token obtido para um e-mail nao pode ser reutilizado para outro e-mail ou entre cadastro e redefinicao de senha.
@@ -60,21 +60,22 @@ O token nunca pode ser aceito apenas porque foi enviado pelo app. O backend deve
 - adicionar a biblioteca Play Integrity;
 - preparar o provedor de token durante a inicializacao do app;
 - gerar o token ao solicitar codigo de cadastro ou redefinicao de senha;
-- incluir `play_integrity_token` no body da requisicao;
+- incluir `protection_provider: "play_integrity"` e `play_integrity_token` no body da requisicao;
 - mostrar uma mensagem orientando atualizar ou instalar pela Play Store quando a verificacao nao puder ser concluida em producao.
 
 ### Configuracao do backend
 
 - vincular o app e o projeto Google Cloud na Play Console;
 - criar uma conta de servico com permissao apenas para validar os tokens;
-- fornecer a credencial por segredo de deploy ou variavel de ambiente;
-- nunca versionar a credencial no repositorio, na imagem Docker ou no `docker-compose.yml`.
+- fornecer a credencial por um arquivo de segredo fora do repositorio;
+- nunca versionar a credencial no repositorio, na imagem Docker ou no `docker-compose.yml`;
+- configurar o caminho absoluto do arquivo em `PLAY_INTEGRITY_CREDENTIALS_FILE`.
 
 ## Web: Cloudflare Turnstile
 
 Nas telas web de cadastro e esqueci minha senha, o Turnstile gera um token temporario antes do envio do formulario. O modo `Managed` deve ser usado para manter a maior parte das verificacoes invisivel para usuarios reais.
 
-O front-end envia o token no campo `turnstile_token`. O backend chama a API Siteverify da Cloudflare e so continua quando a resposta for valida.
+O front-end envia `protection_provider: "turnstile"` e o token no campo `turnstile_token`. O backend chama a API Siteverify da Cloudflare e so continua quando a resposta for valida.
 
 Na validacao, o backend deve conferir:
 
@@ -85,6 +86,37 @@ Na validacao, o backend deve conferir:
 - IP remoto, quando disponivel.
 
 O `sitekey` pode ficar no front-end. A chave secreta do Turnstile fica somente no backend, em segredo de deploy ou variavel de ambiente.
+
+## Implementacao no backend
+
+Os dois endpoints ja possuem a camada de verificacao antes de consultar o banco, criar um codigo ou chamar o SMTP:
+
+```http
+POST /api/auth/request-register-code
+POST /api/auth/forgot-password
+```
+
+Nenhum token e salvo ou registrado nos logs. Os logs usam somente um identificador derivado do e-mail para permitir auditoria sem expor o endereco completo.
+
+O comportamento e controlado por `BOT_PROTECTION_MODE`:
+
+| Modo | Comportamento |
+| --- | --- |
+| `disabled` | Padrao atual. Nao exige nem valida tokens. Deve ser usado apenas antes da configuracao dos clientes. |
+| `monitor` | Valida tokens enviados, registra falhas sem bloquear clientes antigos que ainda nao enviam token. |
+| `enforce` | Exige uma prova valida. Token ausente, invalido, com hostname incorreto ou veredito do Google recusado retorna `403`; indisponibilidade temporaria do provedor retorna `503`. |
+
+Quando o modo for `monitor` ou `enforce`, a API exige estas variaveis de ambiente:
+
+```dotenv
+BOT_PROTECTION_MODE=monitor
+TURNSTILE_SECRET_KEY=guarde-este-segredo-fora-do-git
+TURNSTILE_EXPECTED_HOSTNAME=sobra-ai.netlify.app
+PLAY_INTEGRITY_PACKAGE_NAME=br.com.sobraai.app
+PLAY_INTEGRITY_CREDENTIALS_FILE=/caminho/absoluto/play-integrity-service-account.json
+```
+
+`GOOGLE_APPLICATION_CREDENTIALS` pode ser usado como alternativa para o caminho da credencial, mas `PLAY_INTEGRITY_CREDENTIALS_FILE` deixa a configuracao explicita. No servidor, o JSON deve ficar fora de `/home/ubuntu/app-financeiro`, com permissao de leitura apenas para quem executa o container, e ser montado como arquivo somente leitura.
 
 ## Experiencia do usuario
 
@@ -179,10 +211,10 @@ O endpoint `POST /api/auth/reset-password` nao precisa de Play Integrity ou Turn
 
 Versoes antigas do Android ainda nao enviam o token. Por isso, a ativacao precisa ser gradual:
 
-1. Configurar Play Integrity e Turnstile em ambiente de desenvolvimento com chaves de teste.
-2. Publicar uma versao Android que envie o token, mantendo o backend apenas registrando tokens ausentes ou invalidos por um periodo curto.
-3. Verificar os logs e a taxa de validacao do Android e do web.
-4. Ativar a exigencia obrigatoria no backend de producao.
+1. Configurar as variaveis e os segredos com `BOT_PROTECTION_MODE=monitor`.
+2. Publicar a integracao web e uma versao Android que envie o token.
+3. Verificar os logs e a taxa de validacao dos dois clientes.
+4. Mudar apenas `BOT_PROTECTION_MODE` para `enforce` no deploy de producao.
 5. Definir versao minima do Android quando necessario, para impedir que versoes antigas continuem usando os endpoints sem protecao.
 
 Nao deve existir uma liberacao permanente para pedidos sem token em producao, porque isso permitiria que bots contornassem a protecao.

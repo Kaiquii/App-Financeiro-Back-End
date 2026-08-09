@@ -25,6 +25,10 @@ func main() {
 		log.Println("Aviso: Arquivo .env não encontrado. Usando variáveis do sistema.")
 	}
 
+	if err := auth.ConfigureBotProtectionFromEnv(); err != nil {
+		log.Fatalf("Configuracao anti-bot invalida: %v", err)
+	}
+
 	database.Connect()
 
 	if err := migrations.Validate(database.DB); err != nil {

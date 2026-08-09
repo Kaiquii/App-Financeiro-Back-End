@@ -154,6 +154,9 @@ func requestRegisterCode(c *gin.Context) {
 
 	email := normalizeEmail(req.Email)
 	ipAddress := c.ClientIP()
+	if !requireBotProtection(c, "/api/auth/request-register-code", email, ipAddress, req.BotProtectionRequest) {
+		return
+	}
 
 	if isBlockedRegistrationEmail(email) {
 		log.Printf("Cadastro bloqueado por dominio invalido email=%s ip=%s user_agent=%q", email, ipAddress, c.Request.UserAgent())
@@ -745,6 +748,9 @@ func forgotPassword(c *gin.Context) {
 
 	req.Email = normalizeEmail(req.Email)
 	ipAddress := c.ClientIP()
+	if !requireBotProtection(c, "/api/auth/forgot-password", req.Email, ipAddress, req.BotProtectionRequest) {
+		return
+	}
 
 	var user User
 	if err := database.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {

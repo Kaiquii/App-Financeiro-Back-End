@@ -9,6 +9,8 @@
 *.pfx
 *.jks
 *.keystore
+*-service-account*.json
+*play-integrity*.json
 
 # BINÁRIOS GERADOS PELO GO
 *.exe
