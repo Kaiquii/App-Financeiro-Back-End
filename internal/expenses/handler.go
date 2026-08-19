@@ -333,7 +333,7 @@ func updateAdvanceStatus(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		if err := validateAdvanceDate(advancedAt, expense.Date, time.Now()); err != nil {
+		if err := validateAdvanceDate(advancedAt, expense.Date); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -373,11 +373,8 @@ func parseAdvanceDate(value string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("advanced_at deve usar o formato YYYY-MM-DD ou RFC3339")
 }
 
-func validateAdvanceDate(advancedAt time.Time, scheduledAt time.Time, now time.Time) error {
+func validateAdvanceDate(advancedAt time.Time, scheduledAt time.Time) error {
 	advancedDay := calendarDay(advancedAt)
-	if advancedDay.After(calendarDay(now)) {
-		return fmt.Errorf("A data do adiantamento nao pode estar no futuro")
-	}
 	if !advancedDay.Before(calendarDay(scheduledAt)) {
 		return fmt.Errorf("A data do adiantamento deve ser anterior a data prevista da despesa")
 	}

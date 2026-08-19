@@ -31,16 +31,28 @@ func TestEffectiveMonthYearKeepsScheduledPeriodForNormalExpense(t *testing.T) {
 }
 
 func TestValidateAdvanceDate(t *testing.T) {
-	scheduled := time.Date(2026, time.September, 10, 0, 0, 0, 0, time.Local)
-	now := time.Date(2026, time.August, 20, 12, 0, 0, 0, time.Local)
+	scheduled := time.Date(2026, time.September, 20, 0, 0, 0, 0, time.Local)
+	tests := []struct {
+		name      string
+		date      time.Time
+		wantError bool
+	}{
+		{name: "future date in august", date: time.Date(2026, time.August, 20, 0, 0, 0, 0, time.Local)},
+		{name: "last day of august", date: time.Date(2026, time.August, 31, 0, 0, 0, 0, time.Local)},
+		{name: "day before scheduled date", date: time.Date(2026, time.September, 19, 0, 0, 0, 0, time.Local)},
+		{name: "same as scheduled date", date: time.Date(2026, time.September, 20, 0, 0, 0, 0, time.Local), wantError: true},
+		{name: "after scheduled date", date: time.Date(2026, time.September, 21, 0, 0, 0, 0, time.Local), wantError: true},
+	}
 
-	if err := validateAdvanceDate(time.Date(2026, time.August, 19, 0, 0, 0, 0, time.Local), scheduled, now); err != nil {
-		t.Fatalf("valid advance date rejected: %v", err)
-	}
-	if err := validateAdvanceDate(time.Date(2026, time.September, 10, 0, 0, 0, 0, time.Local), scheduled, now); err == nil {
-		t.Fatal("scheduled date should not be accepted as an advance date")
-	}
-	if err := validateAdvanceDate(time.Date(2026, time.August, 21, 0, 0, 0, 0, time.Local), scheduled, now); err == nil {
-		t.Fatal("future advance date should be rejected")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateAdvanceDate(test.date, scheduled)
+			if test.wantError && err == nil {
+				t.Fatal("expected advance date to be rejected")
+			}
+			if !test.wantError && err != nil {
+				t.Fatalf("valid advance date rejected: %v", err)
+			}
+		})
 	}
 }

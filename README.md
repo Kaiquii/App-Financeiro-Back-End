@@ -27,6 +27,8 @@ GIN_MODE=release
 
 Despesas dos tipos `Única` e `Parcelada` podem ter o impacto financeiro antecipado sem alterar o status visual de pagamento. Despesas `Fixa` não aceitam adiantamento.
 
+`advanced_at` pode ser uma data futura em relação ao dia atual, desde que seja anterior à data prevista da despesa. O valor participa do planejamento do mês/ano de `advanced_at` mesmo antes de o dia informado chegar.
+
 Para marcar uma despesa:
 
 ```http
