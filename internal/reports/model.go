@@ -1,5 +1,7 @@
 package reports
 
+import "time"
+
 type ChartResult struct {
 	Month   int     `json:"month"`
 	Income  float64 `json:"income"`
@@ -124,15 +126,17 @@ type InstallmentMonthSummary struct {
 }
 
 type InstallmentItemSummary struct {
-	ID                 uint    `json:"id"`
-	SeriesID           string  `json:"serie_id"`
-	Description        string  `json:"descricao"`
-	CategoryID         uint    `json:"categoria_id"`
-	CategoryName       string  `json:"categoria_nome"`
-	PaymentSource      string  `json:"fonte_pagamento"`
-	Amount             float64 `json:"valor"`
-	Month              int     `json:"mes"`
-	Year               int     `json:"ano"`
-	CurrentInstallment int     `json:"parcela_atual"`
-	TotalInstallments  int     `json:"total_parcelas"`
+	ID                 uint       `json:"id"`
+	SeriesID           string     `json:"serie_id"`
+	Description        string     `json:"descricao"`
+	CategoryID         uint       `json:"categoria_id"`
+	CategoryName       string     `json:"categoria_nome"`
+	PaymentSource      string     `json:"fonte_pagamento"`
+	Amount             float64    `json:"valor"`
+	Month              int        `json:"mes"`
+	Year               int        `json:"ano"`
+	CurrentInstallment int        `json:"parcela_atual"`
+	TotalInstallments  int        `json:"total_parcelas"`
+	IsAdvanced         bool       `json:"is_advanced"`
+	AdvancedAt         *time.Time `json:"advanced_at,omitempty"`
 }

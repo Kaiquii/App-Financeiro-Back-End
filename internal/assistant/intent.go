@@ -343,7 +343,7 @@ func getCategoryExpenseSummary(userID uint, month int, year int, categoryName st
 		}, nil
 	}
 
-	query := database.DB.Where("user_id = ? AND month = ? AND year = ? AND category_id = ?", userID, month, year, category.ID)
+	query := expenses.ApplyEffectivePeriod(database.DB.Where("user_id = ? AND category_id = ?", userID, category.ID), month, year)
 
 	var expensesList []expenses.Expense
 	if err := query.Preload("PaymentSplits").Order("date desc").Find(&expensesList).Error; err != nil {
@@ -381,7 +381,7 @@ func getCategoryExpenseSummary(userID uint, month int, year int, categoryName st
 
 func getMonthlyExpenseTotal(userID uint, month int, year int, paymentSource string) (float64, error) {
 	var items []expenses.Expense
-	if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&items).Error; err != nil {
+	if err := expenses.ApplyEffectivePeriod(database.DB.Preload("PaymentSplits").Where("user_id = ?", userID), month, year).Find(&items).Error; err != nil {
 		return 0, err
 	}
 	items = filterExpensesByPaymentSource(items, paymentSource)
@@ -418,7 +418,7 @@ func getAllCategoryExpenseSummary(userID uint, month int, year int, paymentSourc
 	}
 
 	var expenseItems []expenses.Expense
-	if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&expenseItems).Error; err != nil {
+	if err := expenses.ApplyEffectivePeriod(database.DB.Preload("PaymentSplits").Where("user_id = ?", userID), month, year).Find(&expenseItems).Error; err != nil {
 		return nil, err
 	}
 	expenseItems = filterExpensesByPaymentSource(expenseItems, paymentSource)

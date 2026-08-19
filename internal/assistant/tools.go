@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 )
@@ -127,7 +128,7 @@ func getMonthlySummary(userID uint, month int, year int) (map[string]any, error)
 	}
 
 	var expensesList []expenses.Expense
-	if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&expensesList).Error; err != nil {
+	if err := expenses.ApplyEffectivePeriod(database.DB.Preload("PaymentSplits").Where("user_id = ?", userID), month, year).Find(&expensesList).Error; err != nil {
 		return nil, err
 	}
 
@@ -189,44 +190,52 @@ func getCategorySummary(userID uint, month int, year int) ([]map[string]any, err
 		}
 	}
 
-	type row struct {
-		CategoryID   uint
-		CategoryName string
-		TotalAmount  float64
-	}
-
-	var rows []row
-	query := database.DB.Table("expenses").
-		Select("expenses.category_id, categories.name as category_name, sum(expenses.amount) as total_amount").
-		Joins("left join categories on categories.id = expenses.category_id").
-		Where("expenses.user_id = ? AND expenses.year = ?", userID, year)
-
+	var expenseItems []expenses.Expense
+	query := database.DB.Where("user_id = ?", userID)
 	if month != 0 {
-		query = query.Where("expenses.month = ?", month)
+		query = expenses.ApplyEffectivePeriod(query, month, year)
+	} else {
+		query = expenses.ApplyEffectiveYear(query, year)
 	}
-
-	if err := query.Group("expenses.category_id, categories.name").Scan(&rows).Error; err != nil {
+	if err := query.Find(&expenseItems).Error; err != nil {
 		return nil, err
 	}
 
+	var categoriesList []categories.Category
+	if err := database.DB.Where("user_id = ?", userID).Find(&categoriesList).Error; err != nil {
+		return nil, err
+	}
+	categoryNames := make(map[uint]string, len(categoriesList))
+	for _, category := range categoriesList {
+		categoryNames[category.ID] = category.Name
+	}
+	totals := make(map[uint]float64)
 	var total float64
-	for _, row := range rows {
-		total += row.TotalAmount
+	for _, expense := range expenseItems {
+		totals[expense.CategoryID] += expense.Amount
+		total += expense.Amount
 	}
 
-	results := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
+	results := make([]map[string]any, 0, len(totals))
+	for categoryID, amount := range totals {
 		percentage := 0.0
 		if total > 0 {
-			percentage = (row.TotalAmount / total) * 100
+			percentage = (amount / total) * 100
+		}
+		name := strings.TrimSpace(categoryNames[categoryID])
+		if name == "" {
+			name = "Sem categoria"
 		}
 		results = append(results, map[string]any{
-			"category_id":   row.CategoryID,
-			"category_name": row.CategoryName,
-			"total_amount":  roundMoney(row.TotalAmount),
+			"category_id":   categoryID,
+			"category_name": name,
+			"total_amount":  roundMoney(amount),
 			"percentage":    roundMoney(percentage),
 		})
 	}
+	sort.Slice(results, func(i, j int) bool {
+		return numberToFloat(results[i]["total_amount"]) > numberToFloat(results[j]["total_amount"])
+	})
 
 	return results, nil
 }

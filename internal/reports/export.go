@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -219,7 +220,7 @@ func loadExportDataset(userID uint, options exportOptions) (exportDataset, error
 			Order("month asc, year asc, id asc").Find(&dataset.Incomes).Error; err != nil {
 			return dataset, err
 		}
-		if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, options.Month, options.Year).
+		if err := expenses.ApplyEffectivePeriod(database.DB.Preload("PaymentSplits").Where("user_id = ?", userID), options.Month, options.Year).
 			Order("date asc, id asc").Find(&dataset.Expenses).Error; err != nil {
 			return dataset, err
 		}
@@ -240,7 +241,7 @@ func loadExportDataset(userID uint, options exportOptions) (exportDataset, error
 			return dataset, err
 		}
 		var comparedExpenses []expenses.Expense
-		if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, options.CompareMonth, options.CompareYear).
+		if err := expenses.ApplyEffectivePeriod(database.DB.Preload("PaymentSplits").Where("user_id = ?", userID), options.CompareMonth, options.CompareYear).
 			Find(&comparedExpenses).Error; err != nil {
 			return dataset, err
 		}
@@ -360,7 +361,7 @@ func generateExportCSV(dataset exportDataset) ([]byte, error) {
 }
 
 func writeExpensesCSV(writer *csv.Writer, items []expenses.Expense, categoryNames map[uint]string) error {
-	if err := writer.Write([]string{"Data", "Descricao", "Categoria", "Fonte de Pagamento", "Tipo", "Parcela", "Valor", "Observacoes"}); err != nil {
+	if err := writer.Write([]string{"Data", "Descricao", "Categoria", "Fonte de Pagamento", "Tipo", "Parcela", "Valor", "Observacoes", "Data considerada", "Adiantamento"}); err != nil {
 		return err
 	}
 	for _, expense := range items {
@@ -372,11 +373,25 @@ func writeExpensesCSV(writer *csv.Writer, items []expenses.Expense, categoryName
 		if category == "" {
 			category = "Sem categoria"
 		}
-		if err := writer.Write([]string{expense.Date.Format("2006-01-02"), safeCSVText(expense.Description), safeCSVText(category), safeCSVText(paymentSplitsLabel(expense)), safeCSVText(expenseTypeLabel(expense.Type)), installment, formatDecimal(expense.Amount), safeCSVText(expense.Notes)}); err != nil {
+		if err := writer.Write([]string{expense.Date.Format("2006-01-02"), safeCSVText(expense.Description), safeCSVText(category), safeCSVText(paymentSplitsLabel(expense)), safeCSVText(expenseTypeLabel(expense.Type)), installment, formatDecimal(expense.Amount), safeCSVText(expense.Notes), expenseFinancialDate(expense).Format("2006-01-02"), safeCSVText(expenseAdvanceLabel(expense))}); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func expenseFinancialDate(expense expenses.Expense) time.Time {
+	if expense.IsAdvanced && expense.AdvancedAt != nil {
+		return *expense.AdvancedAt
+	}
+	return expense.Date
+}
+
+func expenseAdvanceLabel(expense expenses.Expense) string {
+	if !expense.IsAdvanced || expense.AdvancedAt == nil {
+		return ""
+	}
+	return "Adiantada em " + expense.AdvancedAt.In(time.Local).Format("02/01/2006")
 }
 
 func paymentSplitsLabel(expense expenses.Expense) string {

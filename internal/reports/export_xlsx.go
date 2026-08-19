@@ -333,9 +333,10 @@ func xlsxExpensesSection(dataset exportDataset) xlsxSection {
 			{expense.Date, xlsxDate}, {expense.Description, xlsxText}, {category, xlsxText},
 			{paymentSplitsLabel(expense), xlsxText}, {expenseTypeLabel(expense.Type), xlsxText},
 			{installment, xlsxText}, {roundMoney(expense.Amount), xlsxCurrency}, {expense.Notes, xlsxWrappedText},
+			{expenseFinancialDate(expense), xlsxDate}, {expenseAdvanceLabel(expense), xlsxText},
 		})
 	}
-	return xlsxSection{Title: "Despesas", Headers: []string{"Data", "Descrição", "Categoria", "Fonte de Pagamento", "Tipo", "Parcela", "Valor", "Observações"}, Rows: rows, Filter: true}
+	return xlsxSection{Title: "Despesas", Headers: []string{"Data", "Descrição", "Categoria", "Fonte de Pagamento", "Tipo", "Parcela", "Valor", "Observações", "Data considerada", "Adiantamento"}, Rows: rows, Filter: true}
 }
 
 func xlsxIncomesSection(dataset exportDataset) xlsxSection {
@@ -445,10 +446,14 @@ func xlsxCommitmentSections(commitments InstallmentCommitmentsResponse) []xlsxSe
 	timelineRows := make([][]xlsxCell, 0)
 	for _, month := range commitments.Timeline {
 		for _, installment := range month.Installments {
+			advanceLabel := ""
+			if installment.IsAdvanced && installment.AdvancedAt != nil {
+				advanceLabel = "Adiantada em " + installment.AdvancedAt.In(time.Local).Format("02/01/2006")
+			}
 			timelineRows = append(timelineRows, []xlsxCell{
 				{installment.Month, xlsxInteger}, {installment.Year, xlsxInteger}, {installment.Description, xlsxText},
 				{installment.CategoryName, xlsxText}, {paymentSourceLabel(installment.PaymentSource), xlsxText},
-				{formatInstallment(installment.CurrentInstallment, installment.TotalInstallments), xlsxText}, {roundMoney(installment.Amount), xlsxCurrency},
+				{formatInstallment(installment.CurrentInstallment, installment.TotalInstallments), xlsxText}, {roundMoney(installment.Amount), xlsxCurrency}, {advanceLabel, xlsxText},
 			})
 		}
 	}
@@ -456,7 +461,7 @@ func xlsxCommitmentSections(commitments InstallmentCommitmentsResponse) []xlsxSe
 	return []xlsxSection{
 		{Title: "Resumo", Headers: []string{"Campo", "Valor", "Total"}, Rows: summaryRows},
 		{Title: "Compras", Headers: []string{"Descrição", "Categoria", "Fonte", "Valor da Parcela", "Total Original", "Total Pago", "Total Restante", "Parcelas Pagas", "Parcelas Restantes", "Total Parcelas", "Próxima Parcela"}, Rows: purchaseRows, Filter: true},
-		{Title: "Linha do Tempo", Headers: []string{"Mês", "Ano", "Descrição", "Categoria", "Fonte", "Parcela", "Valor"}, Rows: timelineRows},
+		{Title: "Linha do Tempo", Headers: []string{"Mês", "Ano", "Descrição", "Categoria", "Fonte", "Parcela", "Valor", "Adiantamento"}, Rows: timelineRows},
 	}
 }
 

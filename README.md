@@ -23,6 +23,39 @@ JWT_SECRET=sua_chave
 GIN_MODE=release
 ```
 
+## Adiantamento De Despesas
+
+Despesas dos tipos `Única` e `Parcelada` podem ter o impacto financeiro antecipado sem alterar o status visual de pagamento. Despesas `Fixa` não aceitam adiantamento.
+
+Para marcar uma despesa:
+
+```http
+PATCH /api/expenses/:id/advance-status
+Authorization: Bearer TOKEN
+Content-Type: application/json
+
+{
+  "is_advanced": true,
+  "advanced_at": "2026-08-19"
+}
+```
+
+Para remover, envie `{"is_advanced": false}`. A remoção não altera `is_paid` nem `paid_at`.
+
+A consulta padrão de despesas continua usando o mês previsto, preservando o histórico:
+
+```http
+GET /api/expenses?month=9&year=2026
+```
+
+Para listar as despesas que afetam financeiramente um mês, incluindo lançamentos futuros adiantados para ele, use:
+
+```http
+GET /api/expenses?month=8&year=2026&period_mode=effective
+```
+
+Relatórios, gráficos, comparações, exportações e o assistente usam automaticamente o período financeiro efetivo.
+
 ## Como Subir Na VM Pela Primeira Vez
 
 Na sua máquina local, gere a imagem:

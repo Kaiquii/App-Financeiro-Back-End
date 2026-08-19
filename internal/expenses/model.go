@@ -20,6 +20,8 @@ type Expense struct {
 	CurrentInstall int            `json:"current_installment"`
 	IsPaid         bool           `json:"is_paid"`
 	PaidAt         *time.Time     `json:"paid_at,omitempty"`
+	IsAdvanced     bool           `json:"is_advanced" gorm:"default:false;not null"`
+	AdvancedAt     *time.Time     `json:"advanced_at,omitempty" gorm:"index"`
 }
 
 type PaymentSplit struct {
@@ -54,4 +56,11 @@ type CreateExpenseRequest struct {
 // expense. It intentionally does not change any financial amount or report.
 type UpdatePaymentStatusRequest struct {
 	IsPaid *bool `json:"is_paid" binding:"required"`
+}
+
+// UpdateAdvanceStatusRequest is intentionally independent from the visual
+// payment status. Advancing an expense never changes is_paid or paid_at.
+type UpdateAdvanceStatusRequest struct {
+	IsAdvanced *bool  `json:"is_advanced" binding:"required"`
+	AdvancedAt string `json:"advanced_at"`
 }

@@ -76,7 +76,7 @@ func getMonthlySummary(c *gin.Context) {
 	}
 
 	var expensesList []expenses.Expense
-	if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&expensesList).Error; err != nil {
+	if err := expenses.ApplyEffectivePeriod(database.DB.Preload("PaymentSplits").Where("user_id = ?", userID), month, year).Find(&expensesList).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar despesas"})
 		return
 	}
@@ -165,28 +165,42 @@ func getCategorySummary(c *gin.Context) {
 		return
 	}
 
-	results := make([]CategoryResult, 0)
-
-	query := database.DB.Table("expenses").
-		Select("expenses.category_id, categories.name as category_name, sum(expenses.amount) as total_amount").
-		Joins("left join categories on categories.id = expenses.category_id").
-		Where("expenses.user_id = ? AND expenses.year = ?", userID, year)
-
+	month := 0
 	if monthStr != "" {
-		month, err := strconv.Atoi(monthStr)
+		month, err = strconv.Atoi(monthStr)
 		if err != nil || month < 1 || month > 12 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Mês inválido"})
 			return
 		}
-		query = query.Where("expenses.month = ?", month)
 	}
 
-	if err := query.Group("expenses.category_id, categories.name").Scan(&results).Error; err != nil {
+	var expenseItems []expenses.Expense
+	query := database.DB.Where("user_id = ?", userID)
+	if month > 0 {
+		query = expenses.ApplyEffectivePeriod(query, month, year)
+	} else {
+		query = expenses.ApplyEffectiveYear(query, year)
+	}
+	if err := query.Find(&expenseItems).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar resumo por categoria"})
 		return
 	}
-	if results == nil {
-		results = make([]CategoryResult, 0)
+	categoryNames, err := loadCategoryNames(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar categorias"})
+		return
+	}
+	totals := make(map[uint]float64)
+	for _, expense := range expenseItems {
+		totals[expense.CategoryID] += expense.Amount
+	}
+	results := make([]CategoryResult, 0, len(totals))
+	for categoryID, total := range totals {
+		name := strings.TrimSpace(categoryNames[categoryID])
+		if name == "" {
+			name = "Sem categoria"
+		}
+		results = append(results, CategoryResult{CategoryID: categoryID, CategoryName: name, TotalAmount: total})
 	}
 
 	var totalGeral float64
@@ -199,6 +213,7 @@ func getCategorySummary(c *gin.Context) {
 			results[i].Percentage = (results[i].TotalAmount / totalGeral) * 100
 		}
 	}
+	sort.Slice(results, func(i, j int) bool { return results[i].TotalAmount > results[j].TotalAmount })
 
 	c.JSON(http.StatusOK, results)
 }
@@ -229,7 +244,7 @@ func getChartData(c *gin.Context) {
 	}
 
 	var expensesList []expenses.Expense
-	if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND year = ?", userID, year).Find(&expensesList).Error; err != nil {
+	if err := expenses.ApplyEffectiveYear(database.DB.Preload("PaymentSplits").Where("user_id = ?", userID), year).Find(&expensesList).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar despesas do ano"})
 		return
 	}
@@ -253,10 +268,11 @@ func buildChartResults(incomesList []incomes.Income, expensesList []expenses.Exp
 	}
 
 	for _, exp := range expensesList {
-		data := monthlyData[exp.Month]
-		data.Month = exp.Month
+		month, _ := expenses.EffectiveMonthYear(exp)
+		data := monthlyData[month]
+		data.Month = month
 		data.Expense += exp.Amount
-		monthlyData[exp.Month] = data
+		monthlyData[month] = data
 	}
 
 	results := make([]ChartResult, 0, 12)
@@ -299,8 +315,7 @@ func getYearlySummary(c *gin.Context) {
 	}
 
 	var totalExpense float64
-	if err := database.DB.Table("expenses").
-		Where("user_id = ? AND year = ?", userID, year).
+	if err := expenses.ApplyEffectiveYear(database.DB.Table("expenses").Where("user_id = ?", userID), year).
 		Select("COALESCE(sum(amount), 0)").Scan(&totalExpense).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar total de despesas do ano"})
 		return
@@ -362,13 +377,13 @@ func getMonthComparison(c *gin.Context) {
 	}
 
 	var currentExpenses []expenses.Expense
-	if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, month, year).Find(&currentExpenses).Error; err != nil {
+	if err := expenses.ApplyEffectivePeriod(database.DB.Preload("PaymentSplits").Where("user_id = ?", userID), month, year).Find(&currentExpenses).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar despesas do mes atual"})
 		return
 	}
 
 	var comparedExpenses []expenses.Expense
-	if err := database.DB.Preload("PaymentSplits").Where("user_id = ? AND month = ? AND year = ?", userID, comparedMonth, comparedYear).Find(&comparedExpenses).Error; err != nil {
+	if err := expenses.ApplyEffectivePeriod(database.DB.Preload("PaymentSplits").Where("user_id = ?", userID), comparedMonth, comparedYear).Find(&comparedExpenses).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar despesas do mes comparado"})
 		return
 	}
@@ -861,7 +876,9 @@ func buildInstallmentCommitmentsResponse(installments []expenses.Expense, catego
 			monthTotals[monthKey] = monthSummary
 		}
 
-		monthSummary.Total += installment.Amount
+		if !installment.IsAdvanced {
+			monthSummary.Total += installment.Amount
+		}
 		monthSummary.Installments = append(monthSummary.Installments, installmentItemSummary(installment, categoryNames))
 	}
 
@@ -961,6 +978,11 @@ func buildPurchaseSummary(seriesKey string, installments []expenses.Expense, cat
 
 	for _, installment := range installments {
 		installmentDate := monthDate(installment.Year, installment.Month)
+		if installment.IsAdvanced {
+			paidTotal += installment.Amount
+			paidInstallments++
+			continue
+		}
 		if installmentDate.Before(baseDate) {
 			paidTotal += installment.Amount
 			paidInstallments++
@@ -1009,6 +1031,8 @@ func installmentItemSummary(installment expenses.Expense, categoryNames map[uint
 		Year:               installment.Year,
 		CurrentInstallment: installment.CurrentInstall,
 		TotalInstallments:  installment.Installments,
+		IsAdvanced:         installment.IsAdvanced,
+		AdvancedAt:         installment.AdvancedAt,
 	}
 }
 

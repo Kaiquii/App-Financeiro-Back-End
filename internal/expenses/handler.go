@@ -64,6 +64,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 		expensesGroup.GET("/:id", getExpenseByID)
 		expensesGroup.PATCH("/:id", updateExpense)
 		expensesGroup.PATCH("/:id/payment-status", updatePaymentStatus)
+		expensesGroup.PATCH("/:id/advance-status", updateAdvanceStatus)
 		expensesGroup.DELETE("/:id", deleteExpense)
 	}
 }
@@ -174,15 +175,30 @@ func getExpenses(c *gin.Context) {
 	query := database.DB.Where("user_id = ?", userID)
 	monthStr := c.Query("month")
 	yearStr := c.Query("year")
-
-	if monthStr != "" {
-		if month, err := strconv.Atoi(monthStr); err == nil {
-			query = query.Where("month = ?", month)
-		}
+	periodMode := strings.TrimSpace(strings.ToLower(c.DefaultQuery("period_mode", "scheduled")))
+	if periodMode != "scheduled" && periodMode != "effective" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "period_mode invalido. Use scheduled ou effective"})
+		return
 	}
-	if yearStr != "" {
-		if year, err := strconv.Atoi(yearStr); err == nil {
-			query = query.Where("year = ?", year)
+
+	if periodMode == "effective" {
+		month, monthErr := strconv.Atoi(monthStr)
+		year, yearErr := strconv.Atoi(yearStr)
+		if monthErr != nil || month < 1 || month > 12 || yearErr != nil || year < 2000 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "month e year validos sao obrigatorios com period_mode=effective"})
+			return
+		}
+		query = ApplyEffectivePeriod(query, month, year)
+	} else {
+		if monthStr != "" {
+			if month, err := strconv.Atoi(monthStr); err == nil {
+				query = query.Where("month = ?", month)
+			}
+		}
+		if yearStr != "" {
+			if year, err := strconv.Atoi(yearStr); err == nil {
+				query = query.Where("year = ?", year)
+			}
 		}
 	}
 	typeStr := c.Query("type")
@@ -286,6 +302,93 @@ func updatePaymentStatus(c *gin.Context) {
 	})
 }
 
+func updateAdvanceStatus(c *gin.Context) {
+	userID, ok := getUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario nao identificado"})
+		return
+	}
+
+	var req UpdateAdvanceStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.IsAdvanced == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados invalidos: is_advanced e obrigatorio"})
+		return
+	}
+
+	var expense Expense
+	if err := database.DB.Preload("PaymentSplits").Where("id = ? AND user_id = ?", c.Param("id"), userID).First(&expense).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Despesa nao encontrada ou nao pertence a voce"})
+		return
+	}
+
+	updates := map[string]interface{}{"is_advanced": *req.IsAdvanced}
+	if *req.IsAdvanced {
+		if !CanBeAdvanced(expense.Type) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Somente despesas unicas ou parceladas podem ser adiantadas"})
+			return
+		}
+
+		advancedAt, err := parseAdvanceDate(req.AdvancedAt)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if err := validateAdvanceDate(advancedAt, expense.Date, time.Now()); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		updates["advanced_at"] = advancedAt
+		expense.AdvancedAt = &advancedAt
+	} else {
+		updates["advanced_at"] = nil
+		expense.AdvancedAt = nil
+	}
+	expense.IsAdvanced = *req.IsAdvanced
+
+	if err := database.DB.Model(&expense).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar adiantamento da despesa"})
+		return
+	}
+	HydratePaymentSplits(&expense)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Adiantamento da despesa atualizado com sucesso!",
+		"expense": expense,
+	})
+}
+
+func parseAdvanceDate(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, fmt.Errorf("advanced_at e obrigatorio ao adiantar uma despesa")
+	}
+
+	if parsed, err := time.ParseInLocation("2006-01-02", value, time.Local); err == nil {
+		return parsed, nil
+	}
+	if parsed, err := time.Parse(time.RFC3339, value); err == nil {
+		return parsed, nil
+	}
+	return time.Time{}, fmt.Errorf("advanced_at deve usar o formato YYYY-MM-DD ou RFC3339")
+}
+
+func validateAdvanceDate(advancedAt time.Time, scheduledAt time.Time, now time.Time) error {
+	advancedDay := calendarDay(advancedAt)
+	if advancedDay.After(calendarDay(now)) {
+		return fmt.Errorf("A data do adiantamento nao pode estar no futuro")
+	}
+	if !advancedDay.Before(calendarDay(scheduledAt)) {
+		return fmt.Errorf("A data do adiantamento deve ser anterior a data prevista da despesa")
+	}
+	return nil
+}
+
+func calendarDay(value time.Time) time.Time {
+	local := value.In(time.Local)
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, time.Local)
+}
+
 func updateExpense(c *gin.Context) {
 	userID, ok := getUserID(c)
 	if !ok {
@@ -308,6 +411,12 @@ func updateExpense(c *gin.Context) {
 	if err := c.ShouldBindJSON(&updateData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos: " + err.Error()})
 		return
+	}
+	for key := range updateData {
+		if strings.EqualFold(key, "is_advanced") || strings.EqualFold(key, "advanced_at") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Use a rota advance-status para alterar o adiantamento"})
+			return
+		}
 	}
 
 	var requestedSplits []PaymentSplitInput
@@ -377,6 +486,10 @@ func updateExpense(c *gin.Context) {
 		}
 
 		updateData["type"] = normalizedType
+		if expense.IsAdvanced && normalizedType == "Fixa" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Remova o adiantamento antes de transformar a despesa em fixa"})
+			return
+		}
 
 		if normalizedType == "Única" {
 			updateData["installments"] = 1
@@ -388,6 +501,10 @@ func updateExpense(c *gin.Context) {
 
 	if dateStr, ok := updateData["date"].(string); ok {
 		if parsedDate, err := time.Parse(time.RFC3339, dateStr); err == nil {
+			if expense.IsAdvanced && expense.AdvancedAt != nil && !calendarDay(*expense.AdvancedAt).Before(calendarDay(parsedDate)) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "A nova data prevista deve ser posterior a data do adiantamento"})
+				return
+			}
 			updateData["date"] = parsedDate
 			updateData["month"] = int(parsedDate.Month())
 			updateData["year"] = parsedDate.Year()
