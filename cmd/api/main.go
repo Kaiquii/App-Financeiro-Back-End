@@ -28,6 +28,9 @@ func main() {
 	if err := auth.ConfigureBotProtectionFromEnv(); err != nil {
 		log.Fatalf("Configuracao anti-bot invalida: %v", err)
 	}
+	if err := auth.ConfigureEmailSenderFromEnv(); err != nil {
+		log.Fatalf("Configuracao de e-mail invalida: %v", err)
+	}
 
 	database.Connect()
 

@@ -8,14 +8,13 @@ import (
 	"Sobra_Ai_Back-end/internal/incomes"
 	"Sobra_Ai_Back-end/internal/pagination"
 	"Sobra_Ai_Back-end/internal/uploads"
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
 	"log"
 	"math/big"
-	"mime"
 	"net/http"
-	"net/smtp"
 	"net/url"
 	"os"
 	"strconv"
@@ -224,7 +223,7 @@ func requestRegisterCode(c *gin.Context) {
 		return
 	}
 
-	if err := sendRegistrationCodeEmail(email, code); err != nil {
+	if err := sendRegistrationCodeEmail(c.Request.Context(), email, code); err != nil {
 		log.Printf("Erro ao enviar codigo de cadastro email=%s ip=%s erro=%v", email, ipAddress, err)
 		if deleteErr := database.DB.Delete(&registrationCode).Error; deleteErr != nil {
 			log.Printf("Erro ao remover codigo de cadastro apos falha no envio email=%s ip=%s erro=%v", email, ipAddress, deleteErr)
@@ -711,32 +710,12 @@ func generateResetCode() (string, error) {
 	return fmt.Sprintf("%06d", n.Int64()), nil
 }
 
-func sendPasswordResetEmail(to string, name string, code string) error {
-	return sendAuthEmail(to, "Código para redefinir sua senha", passwordResetEmailHTML(name, code))
+func sendPasswordResetEmail(ctx context.Context, to string, name string, code string) error {
+	return sendAuthEmail(ctx, to, "Código para redefinir sua senha", passwordResetEmailHTML(name, code))
 }
 
-func sendRegistrationCodeEmail(to string, code string) error {
-	return sendAuthEmail(to, "Código para criar sua conta", registrationCodeEmailHTML(code))
-}
-
-func sendAuthEmail(to string, subject string, htmlBody string) error {
-	from := os.Getenv("SMTP_EMAIL")
-	password := os.Getenv("SMTP_PASSWORD")
-	host := os.Getenv("SMTP_HOST")
-	port := os.Getenv("SMTP_PORT")
-
-	auth := smtp.PlainAuth("", from, password, host)
-
-	message := []byte(
-		"To: " + to + "\r\n" +
-			"Subject: " + mime.QEncoding.Encode("UTF-8", subject) + "\r\n" +
-			"MIME-Version: 1.0\r\n" +
-			"Content-Type: text/html; charset=\"UTF-8\"\r\n" +
-			"\r\n" +
-			htmlBody + "\r\n",
-	)
-
-	return smtp.SendMail(host+":"+port, auth, from, []string{to}, message)
+func sendRegistrationCodeEmail(ctx context.Context, to string, code string) error {
+	return sendAuthEmail(ctx, to, "Código para criar sua conta", registrationCodeEmailHTML(code))
 }
 
 func forgotPassword(c *gin.Context) {
@@ -810,7 +789,7 @@ func forgotPassword(c *gin.Context) {
 		return
 	}
 
-	if err := sendPasswordResetEmail(user.Email, user.Name, code); err != nil {
+	if err := sendPasswordResetEmail(c.Request.Context(), user.Email, user.Name, code); err != nil {
 		log.Printf("Erro ao enviar codigo de redefinicao de senha email=%s ip=%s erro=%v", user.Email, ipAddress, err)
 		if deleteErr := database.DB.Delete(&resetToken).Error; deleteErr != nil {
 			log.Printf("Erro ao remover codigo de redefinicao apos falha no envio email=%s ip=%s erro=%v", user.Email, ipAddress, deleteErr)
