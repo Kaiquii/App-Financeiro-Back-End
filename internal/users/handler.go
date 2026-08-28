@@ -18,7 +18,7 @@ import (
 
 const (
 	avatarSize        = 512
-	maxAvatarBytes    = 5 * 1024 * 1024
+	maxAvatarBytes    = 50 * 1024 * 1024
 	avatarJPEGQuality = 85
 )
 
@@ -93,7 +93,7 @@ func updateProfilePhoto(c *gin.Context) {
 	}
 
 	if fileHeader.Size > maxAvatarBytes {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "A foto deve ter no maximo 5 MB"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "A foto deve ter no maximo 50 MB"})
 		return
 	}
 
