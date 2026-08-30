@@ -71,6 +71,8 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		recordUserActivity(user.ID)
+
 		c.Set("user_id", user.ID)
 		c.Set("user_email", user.Email)
 		c.Set("user_role", user.Role)

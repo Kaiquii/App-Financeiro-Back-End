@@ -53,6 +53,7 @@ func init() {
 		{Version: 2, Name: "add_expense_payment_status", Checksum: "7bab1d036f6a54b35e3949df0cd2bb9c1d017396209a6abf886f633b7293e7c6", Up: addExpensePaymentStatus},
 		{Version: 3, Name: "add_expense_payment_splits", Checksum: "4a708d6cbbb9445a2d1d4e79a0d51e2d1f50be3032a78a86fc7a27a8c03e8f12", Up: addExpensePaymentSplits},
 		{Version: 4, Name: "add_expense_advance_status", Checksum: "d45c5267cbff91235a63a42195c9ffb306c6d24f75b0a821a0f04826b3dfc8ef", Up: addExpenseAdvanceStatus},
+		{Version: 5, Name: "add_user_last_active", Checksum: "3ad160234f946be9008713d3264a2aef31c16a1b6605b1dcd45803a3ec94ddb6", Up: addUserLastActive},
 	}
 }
 

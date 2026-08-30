@@ -23,6 +23,7 @@ type User struct {
 	AvatarURL       string     `json:"avatar_url"`
 	AccessBlocked   bool       `gorm:"default:false" json:"access_blocked"`
 	AccessBlockedAt *time.Time `json:"access_blocked_at,omitempty"`
+	LastActiveAt    time.Time  `gorm:"not null;default:CURRENT_TIMESTAMP" json:"last_active_at"`
 }
 
 type UserMetricsResponse struct {

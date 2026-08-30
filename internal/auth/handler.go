@@ -368,6 +368,8 @@ func login(c *gin.Context) {
 		return
 	}
 
+	recordUserActivity(user.ID)
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Login realizado com sucesso!",
 		"token":   tokenString,

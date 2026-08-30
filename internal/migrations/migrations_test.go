@@ -26,6 +26,18 @@ func TestRegistryStartsWithFrozenBaseline(t *testing.T) {
 	}
 }
 
+func TestRegistryIncludesUserLastActiveMigration(t *testing.T) {
+	for _, migration := range sortedRegistry() {
+		if migration.Version == 5 {
+			if migration.Name != "add_user_last_active" {
+				t.Fatalf("unexpected migration 5: %+v", migration)
+			}
+			return
+		}
+	}
+	t.Fatal("migration 5 was not registered")
+}
+
 func TestUnknownAppliedMigrationIsRejected(t *testing.T) {
 	err := validateAppliedMigrations(map[int64]AppliedMigration{
 		999: {Version: 999, Name: "future"},
